@@ -499,6 +499,7 @@ public:
 
 	bool playInline(bool autoplay) override;
 	void stopInline() override;
+	bool isRoundVideoPlaying() const override;
 
 	void attachToParent() override;
 	void detachFromParent() override;
@@ -532,6 +533,8 @@ public:
 	bool customInfoLayout() const override {
 		return _caption.isEmpty();
 	}
+	QString additionalInfoString() const override;
+
 	bool skipBubbleTail() const override {
 		return isBubbleBottom() && _caption.isEmpty();
 	}
@@ -555,9 +558,9 @@ protected:
 	}
 
 private:
-	int additionalWidth(const HistoryMessageVia *via, const HistoryMessageReply *reply) const;
+	int additionalWidth(const HistoryMessageVia *via, const HistoryMessageReply *reply, const HistoryMessageForwarded *forwarded) const;
 	int additionalWidth() const {
-		return additionalWidth(_parent->Get<HistoryMessageVia>(), _parent->Get<HistoryMessageReply>());
+		return additionalWidth(_parent->Get<HistoryMessageVia>(), _parent->Get<HistoryMessageReply>(), _parent->Get<HistoryMessageForwarded>());
 	}
 	QString mediaTypeString() const;
 	bool isSeparateRoundVideo() const {
@@ -704,6 +707,61 @@ private:
 	ClickHandlerPtr _linkl;
 	int _linkw = 0;
 	QString _link;
+
+};
+
+class HistoryCall : public HistoryMedia {
+public:
+	HistoryCall(HistoryItem *parent, const MTPDmessageActionPhoneCall &call);
+	HistoryMediaType type() const override {
+		return MediaTypeCall;
+	}
+	std::unique_ptr<HistoryMedia> clone(HistoryItem *newParent) const override {
+		Unexpected("Clone HistoryCall.");
+	}
+
+	void initDimensions() override;
+
+	void draw(Painter &p, const QRect &r, TextSelection selection, TimeMs ms) const override;
+	HistoryTextState getState(int x, int y, HistoryStateRequest request) const override;
+
+	bool toggleSelectionByHandlerClick(const ClickHandlerPtr &p) const override {
+		return true;
+	}
+	bool dragItemByHandler(const ClickHandlerPtr &p) const override {
+		return false;
+	}
+
+	QString notificationText() const override;
+	TextWithEntities selectedText(TextSelection selection) const override;
+
+	bool needsBubble() const override {
+		return true;
+	}
+	bool customInfoLayout() const override {
+		return true;
+	}
+
+	enum class FinishReason {
+		Missed,
+		Busy,
+		Disconnected,
+		Hangup,
+	};
+	FinishReason reason() const {
+		return _reason;
+	}
+
+private:
+	static FinishReason GetReason(const MTPDmessageActionPhoneCall &call);
+
+	FinishReason _reason = FinishReason::Missed;
+	int _duration = 0;
+
+	QString _text;
+	QString _status;
+
+	ClickHandlerPtr _link;
 
 };
 

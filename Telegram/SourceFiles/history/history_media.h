@@ -113,6 +113,9 @@ public:
 	}
 	virtual void stopInline() {
 	}
+	virtual bool isRoundVideoPlaying() const {
+		return false;
+	}
 
 	virtual void attachToParent() {
 	}
@@ -149,6 +152,13 @@ public:
 	}
 	virtual bool hideForwardedFrom() const {
 		return false;
+	}
+
+	// An attach media in a web page can provide an
+	// additional text to be displayed below the attach.
+	// For example duration / progress for video messages.
+	virtual QString additionalInfoString() const {
+		return QString();
 	}
 
 	int currentWidth() const {

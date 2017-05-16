@@ -578,7 +578,6 @@ TextSelection shiftSelection(TextSelection selection, const Text &byText) {
 } // namespace internal
 
 HistoryItem::HistoryItem(History *history, MsgId msgId, MTPDmessage::Flags flags, QDateTime msgDate, int32 from) : HistoryElement()
-, y(0)
 , id(msgId)
 , date(msgDate)
 , _from(from ? App::user(from) : history->peer)
@@ -753,6 +752,25 @@ void HistoryItem::setId(MsgId newId) {
 	}
 }
 
+bool HistoryItem::canPin() const {
+	return id > 0 && _history->peer->isMegagroup() && (_history->peer->asChannel()->amEditor() || _history->peer->asChannel()->amCreator()) && toHistoryMessage();
+}
+
+bool HistoryItem::canForward() const {
+	if (id < 0) {
+		return false;
+	}
+	if (auto message = toHistoryMessage()) {
+		if (auto media = message->getMedia()) {
+			if (media->type() == MediaTypeCall) {
+				return false;
+			}
+		}
+		return true;
+	}
+	return false;
+}
+
 bool HistoryItem::canEdit(const QDateTime &cur) const {
 	auto messageToMyself = (_history->peer->id == AuthSession::CurrentUserPeerId());
 	auto messageTooOld = messageToMyself ? false : (date.secsTo(cur) >= Global::EditTimeLimit());
@@ -779,25 +797,71 @@ bool HistoryItem::canEdit(const QDateTime &cur) const {
 	return false;
 }
 
+bool HistoryItem::canDelete() const {
+	auto channel = _history->peer->asChannel();
+	if (!channel) {
+		return !(_flags & MTPDmessage_ClientFlag::f_is_group_migrate);
+	}
+
+	if (id == 1) {
+		return false;
+	}
+	if (channel->amCreator()) {
+		return true;
+	}
+	if (isPost()) {
+		if (channel->amEditor() && out()) {
+			return true;
+		}
+		return false;
+	}
+	return (channel->amEditor() || channel->amModerator() || out());
+}
+
 bool HistoryItem::canDeleteForEveryone(const QDateTime &cur) const {
 	auto messageToMyself = (_history->peer->id == AuthSession::CurrentUserPeerId());
 	auto messageTooOld = messageToMyself ? false : (date.secsTo(cur) >= Global::EditTimeLimit());
-	if (id < 0 || messageToMyself || messageTooOld) {
+	if (id < 0 || messageToMyself || messageTooOld || isPost()) {
 		return false;
 	}
 	if (history()->peer->isChannel()) {
 		return false;
 	}
-
-	if (auto msg = toHistoryMessage()) {
-		return !isPost() && out();
+	if (!toHistoryMessage()) {
+		return false;
 	}
-	return false;
+	if (auto media = getMedia()) {
+		if (media->type() == MediaTypeCall) {
+			return false;
+		}
+	}
+	if (!out()) {
+		if (auto chat = history()->peer->asChat()) {
+			if (!chat->amCreator() && (!chat->amAdmin() || !chat->adminsEnabled())) {
+				return false;
+			}
+		} else {
+			return false;
+		}
+	}
+	return true;
 }
 
 QString HistoryItem::directLink() const {
-	return hasDirectLink() ? Messenger::Instance().createInternalLinkFull(_history->peer->asChannel()->username + '/' + QString::number(id)) : QString();
+	if (hasDirectLink()) {
+		auto query = _history->peer->asChannel()->username + '/' + QString::number(id);
+		if (auto media = getMedia()) {
+			if (auto document = media->getDocument()) {
+				if (document->isRoundVideo()) {
+					return qsl("https://telesco.pe/") + query;
+				}
+			}
+		}
+		return Messenger::Instance().createInternalLinkFull(query);
+	}
+	return QString();
 }
+
 bool HistoryItem::unread() const {
 	// Messages from myself are always read.
 	if (history()->peer->isSelf()) return false;

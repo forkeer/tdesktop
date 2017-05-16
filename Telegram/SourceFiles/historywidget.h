@@ -200,6 +200,8 @@ public:
 	void unreadCountChanged(History *history);
 
 	QRect historyRect() const;
+	int tabbedSelectorSectionWidth() const;
+	int minimalWidthForTabbedSelectorSection() const;
 
 	void updateSendAction(History *history, SendAction::Type type, int32 progress = 0);
 	void cancelSendAction(History *history, SendAction::Type type);
@@ -480,7 +482,6 @@ private:
 	void toggleTabbedSelectorMode();
 	void updateTabbedSelectorSectionShown();
 	void recountChatWidth();
-	int minimalWidthForTabbedSelectorSection() const;
 	void setReportSpamStatus(DBIPeerReportSpamStatus status);
 
 	void animationCallback();
@@ -695,9 +696,6 @@ private:
 
 	PeerData *_peer = nullptr;
 
-	// cache current _peer in _clearPeer when showing clear history box
-	PeerData *_clearPeer = nullptr;
-
 	ChannelId _channel = NoChannel;
 	bool _canSendMessages = false;
 	MsgId _showAtMsgId = ShowAtUnreadMsgId;
@@ -790,10 +788,11 @@ private:
 	object_ptr<ChatHelpers::TabbedPanel> _tabbedPanel;
 	object_ptr<ChatHelpers::TabbedSection> _tabbedSection = { nullptr };
 	QPointer<ChatHelpers::TabbedSelector> _tabbedSelector;
+	bool _tabbedSectionUsed = false;
 	DragState _attachDrag = DragStateNone;
 	object_ptr<DragArea> _attachDragDocument, _attachDragPhoto;
 
-	int32 _selCount; // < 0 - text selected, focus list, not _field
+	bool _nonEmptySelection = false;
 
 	TaskQueue _fileLoader;
 	TextUpdateEvents _textUpdateEvents = (TextUpdateEvent::SaveDraft | TextUpdateEvent::SendTyping);

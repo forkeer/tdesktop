@@ -48,9 +48,6 @@ public:
 		return _customTitleHeight;
 	}
 
-	// It is placed here while the window handles activeSpaceDidChange event.
-	void customNotificationCreated(QWidget *notification);
-
 	~MainWindow();
 
 	class Private;
@@ -71,6 +68,7 @@ protected:
 
 	void stateChangedHook(Qt::WindowState state) override;
 	void initHook() override;
+	void updateWindowIcon() override;
 	void titleVisibilityChangedHook() override;
 	void unreadCounterChangedHook() override;
 
@@ -85,8 +83,6 @@ protected:
 
 	QSystemTrayIcon *trayIcon = nullptr;
 	QMenu *trayIconMenu = nullptr;
-	QImage icon256, iconbig256;
-	QIcon wndIcon;
 
 	QImage trayImg, trayImgSel;
 
@@ -104,15 +100,8 @@ private:
 	void updateTitleCounter();
 	void updateIconCounters();
 
-	class CustomNotificationHandle;
-	friend class CustomNotificationHandle;
-	void customNotificationDestroyed(CustomNotificationHandle *handle);
-	void activateCustomNotifications();
-
 	friend class Private;
 	std::unique_ptr<Private> _private;
-
-	std::set<CustomNotificationHandle*> _customNotifications;
 
 	mutable bool psIdle;
 	mutable QTimer psIdleTimer;

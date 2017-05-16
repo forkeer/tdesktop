@@ -84,6 +84,7 @@ public:
 
 	void paint(Painter &p, int x, int y, int size);
 	void paintRounded(Painter &p, int x, int y, int size);
+	void paintSquare(Painter &p, int x, int y, int size);
 	StorageKey uniqueKey() const;
 
 private:
@@ -123,6 +124,12 @@ void EmptyUserpic::Impl::paint(Painter &p, int x, int y, int size) {
 void EmptyUserpic::Impl::paintRounded(Painter &p, int x, int y, int size) {
 	paint(p, x, y, size, [&p, x, y, size] {
 		p.drawRoundedRect(x, y, size, size, st::buttonRadius, st::buttonRadius);
+	});
+}
+
+void EmptyUserpic::Impl::paintSquare(Painter &p, int x, int y, int size) {
+	paint(p, x, y, size, [&p, x, y, size] {
+		p.fillRect(x, y, size, size, p.brush());
 	});
 }
 
@@ -204,17 +211,22 @@ void EmptyUserpic::clear() {
 }
 
 void EmptyUserpic::paint(Painter &p, int x, int y, int outerWidth, int size) const {
-	t_assert(_impl != nullptr);
+	Expects(_impl != nullptr);
 	_impl->paint(p, rtl() ? (outerWidth - x - size) : x, y, size);
 }
 
 void EmptyUserpic::paintRounded(Painter &p, int x, int y, int outerWidth, int size) const {
-	t_assert(_impl != nullptr);
+	Expects(_impl != nullptr);
 	_impl->paintRounded(p, rtl() ? (outerWidth - x - size) : x, y, size);
 }
 
+void EmptyUserpic::paintSquare(Painter &p, int x, int y, int outerWidth, int size) const {
+	Expects(_impl != nullptr);
+	_impl->paintSquare(p, rtl() ? (outerWidth - x - size) : x, y, size);
+}
+
 StorageKey EmptyUserpic::uniqueKey() const {
-	t_assert(_impl != nullptr);
+	Expects(_impl != nullptr);
 	return _impl->uniqueKey();
 }
 
@@ -328,6 +340,14 @@ void PeerData::paintUserpicRounded(Painter &p, int x, int y, int size) const {
 	}
 }
 
+void PeerData::paintUserpicSquare(Painter &p, int x, int y, int size) const {
+	if (auto userpic = currentUserpic()) {
+		p.drawPixmap(x, y, userpic->pix(size, size));
+	} else {
+		_userpicEmpty.paintSquare(p, x, y, x + size + x, size);
+	}
+}
+
 StorageKey PeerData::userpicUniqueKey() const {
 	if (photoLoc.isNull() || !_userpic || !_userpic->loaded()) {
 		return _userpicEmpty.uniqueKey();
@@ -398,7 +418,7 @@ void UserData::setPhoto(const MTPUserProfilePhoto &p) { // see Local::readPeer a
 		newPhotoId = 0;
 		if (id == ServiceUserId) {
 			if (!_userpic) {
-				newPhoto = ImagePtr(App::pixmapFromImageInPlace(App::wnd()->iconLarge().scaledToWidth(160, Qt::SmoothTransformation)), "PNG");
+				newPhoto = ImagePtr(App::pixmapFromImageInPlace(Messenger::Instance().logoNoMargin().scaledToWidth(160, Qt::SmoothTransformation)), "PNG");
 			}
 		} else {
 			newPhoto = ImagePtr();
@@ -576,6 +596,17 @@ void UserData::setBlockStatus(BlockStatus blockStatus) {
 		_blockStatus = blockStatus;
 		Notify::peerUpdatedDelayed(this, UpdateFlag::UserIsBlocked);
 	}
+}
+
+void UserData::setCallsStatus(CallsStatus callsStatus) {
+	if (callsStatus != _callsStatus) {
+		_callsStatus = callsStatus;
+		Notify::peerUpdatedDelayed(this, UpdateFlag::UserHasCalls);
+	}
+}
+
+bool UserData::hasCalls() const {
+	return (callsStatus() != CallsStatus::Disabled) && (callsStatus() != CallsStatus::Unknown);
 }
 
 void ChatData::setPhoto(const MTPChatPhoto &p, const PhotoId &phId) { // see Local::readPeer as well
@@ -1123,8 +1154,15 @@ QString documentSaveFilename(const DocumentData *data, bool forceSavingAs = fals
 		caption = lang(lng_save_audio);
 		prefix = qsl("audio");
 	} else if (data->isVideo()) {
-		name = already.isEmpty() ? qsl(".mov") : already;
-		filter = qsl("MOV Video (*.mov);;") + FileDialog::AllFilesFilter();
+		name = already.isEmpty() ? data->name : already;
+		if (name.isEmpty()) {
+			name = pattern.isEmpty() ? qsl(".mov") : pattern.replace('*', QString());
+		}
+		if (pattern.isEmpty()) {
+			filter = qsl("MOV Video (*.mov);;") + FileDialog::AllFilesFilter();
+		} else {
+			filter = mimeType.filterString() + qsl(";;") + FileDialog::AllFilesFilter();
+		}
 		caption = lang(lng_save_video);
 		prefix = qsl("video");
 	} else {
@@ -1149,7 +1187,7 @@ void DocumentOpenClickHandler::doOpen(DocumentData *data, HistoryItem *context, 
 
 	auto msgId = context ? context->fullId() : FullMsgId();
 	bool playVoice = data->voice();
-	bool playMusic = data->song();
+	bool playMusic = data->tryPlaySong();
 	bool playVideo = data->isVideo();
 	bool playAnimation = data->isAnimation();
 	auto &location = data->location(true);
@@ -1451,7 +1489,7 @@ void DocumentData::performActionOnLoad() {
 	auto item = _actionOnLoadMsgId.msg ? App::histItemById(_actionOnLoadMsgId) : nullptr;
 	auto showImage = !isVideo() && (size < App::kImageSizeLimit);
 	auto playVoice = voice() && (_actionOnLoad == ActionOnLoadPlayInline || _actionOnLoad == ActionOnLoadOpen);
-	auto playMusic = song() && (_actionOnLoad == ActionOnLoadPlayInline || _actionOnLoad == ActionOnLoadOpen);
+	auto playMusic = tryPlaySong() && (_actionOnLoad == ActionOnLoadPlayInline || _actionOnLoad == ActionOnLoadOpen);
 	auto playAnimation = isAnimation() && (_actionOnLoad == ActionOnLoadPlayInline || _actionOnLoad == ActionOnLoadOpen) && showImage && item && item->getMedia();
 	if (auto applyTheme = isTheme()) {
 		if (!loc.isEmpty() && loc.accessEnable()) {
@@ -1758,7 +1796,7 @@ ImagePtr DocumentData::makeReplyPreview() {
 			auto thumbSize = (w > h) ? QSize(w * st::msgReplyBarSize.height() / h, st::msgReplyBarSize.height()) : QSize(st::msgReplyBarSize.height(), h * st::msgReplyBarSize.height() / w);
 			thumbSize *= cIntRetinaFactor();
 			auto options = Images::Option::Smooth | (isRoundVideo() ? Images::Option::Circled : Images::Option::None);
-			auto outerSize = st::msgReplyBarSize.height() * cIntRetinaFactor();
+			auto outerSize = st::msgReplyBarSize.height();
 			auto image = thumb->pixNoCache(thumbSize.width(), thumbSize.height(), options, outerSize, outerSize);
 			replyPreview = ImagePtr(image, "PNG");
 		} else {

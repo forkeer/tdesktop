@@ -39,6 +39,7 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 #include "auth_session.h"
 #include "messenger.h"
 #include "storage/file_download.h"
+#include "calls/calls_instance.h"
 
 namespace {
 
@@ -90,19 +91,24 @@ MediaView::MediaView(QWidget*) : TWidget(nullptr)
 	connect(QApplication::desktop(), SIGNAL(resized(int)), this, SLOT(onScreenResized(int)));
 
 	// While we have one mediaview for all authsessions we have to do this.
-	auto subscribeToDownloadFinished = [this] {
+	auto handleAuthSessionChange = [this] {
 		if (AuthSession::Exists()) {
 			subscribe(AuthSession::CurrentDownloaderTaskFinished(), [this] {
 				if (!isHidden()) {
 					updateControls();
 				}
 			});
+			subscribe(AuthSession::Current().calls().currentCallChanged(), [this](Calls::Call *call) {
+				if (call && _clipController && !_videoPaused) {
+					onVideoPauseResume();
+				}
+			});
 		}
 	};
-	subscribe(Messenger::Instance().authSessionChanged(), [subscribeToDownloadFinished] {
-		subscribeToDownloadFinished();
+	subscribe(Messenger::Instance().authSessionChanged(), [handleAuthSessionChange] {
+		handleAuthSessionChange();
 	});
-	subscribeToDownloadFinished();
+	handleAuthSessionChange();
 
 	auto observeEvents = Notify::PeerUpdate::Flag::SharedMediaChanged;
 	subscribe(Notify::PeerUpdated(), Notify::PeerUpdatedHandler(observeEvents, [this](const Notify::PeerUpdate &update) {
@@ -1562,7 +1568,7 @@ void MediaView::restartVideoAtSeekPosition(TimeMs positionMs) {
 	Media::Player::TrackState state;
 	state.state = Media::Player::State::Playing;
 	state.position = _videoPositionMs;
-	state.duration = _videoDurationMs;
+	state.length = _videoDurationMs;
 	state.frequency = _videoFrequencyMs;
 	updateVideoPlaybackState(state);
 }
@@ -1606,7 +1612,7 @@ void MediaView::onVideoPlayProgress(const AudioMsgId &audioId) {
 	}
 
 	auto state = Media::Player::mixer()->currentVideoState(_gif->playId());
-	if (state.duration) {
+	if (state.length) {
 		updateVideoPlaybackState(state);
 	}
 
@@ -1635,7 +1641,7 @@ void MediaView::updateSilentVideoPlaybackState() {
 		state.state = Media::Player::State::Playing;
 	}
 	state.position = _videoPositionMs;
-	state.duration = _videoDurationMs;
+	state.length = _videoDurationMs;
 	state.frequency = _videoFrequencyMs;
 	updateVideoPlaybackState(state);
 }

@@ -1504,31 +1504,28 @@ bool DialogsInner::searchReceived(const QVector<MTPMessage> &messages, DialogsSe
 
 	TimeId lastDateFound = 0;
 	for_const (auto message, messages) {
-		if (auto msgId = idFromMessage(message)) {
-			auto peerId = peerFromMessage(message);
-			auto lastDate = dateFromMessage(message);
-			if (auto peer = App::peerLoaded(peerId)) {
-				if (lastDate) {
-					auto item = App::histories().addNewMessage(message, NewMessageExisting);
-					_searchResults.push_back(std::make_unique<Dialogs::FakeRow>(item));
-					lastDateFound = lastDate;
-					if (isGlobalSearch) {
-						_lastSearchDate = lastDateFound;
-					}
-				}
+		auto msgId = idFromMessage(message);
+		auto peerId = peerFromMessage(message);
+		auto lastDate = dateFromMessage(message);
+		if (auto peer = App::peerLoaded(peerId)) {
+			if (lastDate) {
+				auto item = App::histories().addNewMessage(message, NewMessageExisting);
+				_searchResults.push_back(std::make_unique<Dialogs::FakeRow>(item));
+				lastDateFound = lastDate;
 				if (isGlobalSearch) {
-					_lastSearchPeer = peer;
+					_lastSearchDate = lastDateFound;
 				}
-			} else {
-				LOG(("API Error: a search results with not loaded peer %1").arg(peerId));
 			}
-			if (isMigratedSearch) {
-				_lastSearchMigratedId = msgId;
-			} else {
-				_lastSearchId = msgId;
+			if (isGlobalSearch) {
+				_lastSearchPeer = peer;
 			}
 		} else {
-			LOG(("API Error: a search results with not message id"));
+			LOG(("API Error: a search results with not loaded peer %1").arg(peerId));
+		}
+		if (isMigratedSearch) {
+			_lastSearchMigratedId = msgId;
+		} else {
+			_lastSearchId = msgId;
 		}
 	}
 	if (isMigratedSearch) {
@@ -2390,10 +2387,11 @@ void DialogsWidget::startWidthAnimation() {
 	auto grabGeometry = QRect(scrollGeometry.x(), scrollGeometry.y(), st::dialogsWidthMin, scrollGeometry.height());
 	_scroll->setGeometry(grabGeometry);
 	myEnsureResized(_scroll);
-	_widthAnimationCache = QPixmap(grabGeometry.size() * cIntRetinaFactor());
-	_widthAnimationCache.setDevicePixelRatio(cRetinaFactor());
-	_widthAnimationCache.fill(Qt::transparent);
-	_scroll->render(&_widthAnimationCache, QPoint(0, 0), QRect(QPoint(0, 0), grabGeometry.size()), QWidget::DrawChildren | QWidget::IgnoreMask);
+	auto image = QImage(grabGeometry.size() * cIntRetinaFactor(), QImage::Format_ARGB32_Premultiplied);
+	image.setDevicePixelRatio(cRetinaFactor());
+	image.fill(Qt::transparent);
+	_scroll->render(&image, QPoint(0, 0), QRect(QPoint(0, 0), grabGeometry.size()), QWidget::DrawChildren | QWidget::IgnoreMask);
+	_widthAnimationCache = App::pixmapFromImageInPlace(std::move(image));
 	_scroll->setGeometry(scrollGeometry);
 	_scroll->hide();
 }

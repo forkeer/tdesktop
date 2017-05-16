@@ -20,12 +20,15 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 */
 #include "messenger.h"
 
+#include "base/timer.h"
 #include "storage/localstorage.h"
 #include "platform/platform_specific.h"
 #include "mainwindow.h"
 #include "application.h"
 #include "shortcuts.h"
 #include "auth_session.h"
+#include "apiwrap.h"
+#include "calls/calls_instance.h"
 #include "langloaderplain.h"
 #include "observer_peer.h"
 #include "storage/file_upload.h"
@@ -33,6 +36,7 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 #include "mtproto/dc_options.h"
 #include "mtproto/mtp_instance.h"
 #include "media/player/media_player_instance.h"
+#include "media/media_audio_track.h"
 #include "window/notifications_manager.h"
 #include "window/themes/window_theme.h"
 #include "history/history_location_manager.h"
@@ -41,6 +45,8 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 #include "window/window_controller.h"
 
 namespace {
+
+constexpr auto kQuitPreventTimeoutMs = 1500;
 
 Messenger *SingleInstance = nullptr;
 
@@ -55,14 +61,20 @@ struct Messenger::Private {
 	std::unique_ptr<Local::StoredAuthSession> storedAuthSession;
 	MTP::Instance::Config mtpConfig;
 	MTP::AuthKeysList mtpKeysToDestroy;
+	base::Timer quitTimer;
 };
 
 Messenger::Messenger() : QObject()
-, _private(std::make_unique<Private>()) {
-	t_assert(SingleInstance == nullptr);
+, _private(std::make_unique<Private>())
+, _audio(std::make_unique<Media::Audio::Instance>())
+, _logo(Window::LoadLogo())
+, _logoNoMargin(Window::LoadLogoNoMargin()) {
+	Expects(!_logo.isNull());
+	Expects(!_logoNoMargin.isNull());
+	Expects(SingleInstance == nullptr);
 	SingleInstance = this;
 
-	Fonts::start();
+	Fonts::Start();
 
 	ThirdParty::start();
 	Global::start();
@@ -402,6 +414,11 @@ void Messenger::startLocalStorage() {
 			}
 		}
 	});
+	subscribe(authSessionChanged(), [this] {
+		if (_mtproto) {
+			_mtproto->configLoadRequest();
+		}
+	});
 }
 
 void Messenger::regPhotoUpdate(const PeerId &peer, const FullMsgId &msgId) {
@@ -713,9 +730,9 @@ void Messenger::checkMapVersion() {
 	if (Local::oldMapVersion() < AppVersion) {
 		if (Local::oldMapVersion()) {
 			QString versionFeatures;
-			if ((cAlphaVersion() || cBetaVersion()) && Local::oldMapVersion() < 1000030) {
-				versionFeatures = QString::fromUtf8("\xE2\x80\x94 The new Emoji, Stickers, and Saved GIFs panel becomes a separate space on the right when Telegram is running in a wide enough window.\n\xE2\x80\x94 Manage blocked users list in your supergroups.");
-			} else if (!(cAlphaVersion() || cBetaVersion()) && Local::oldMapVersion() < 1000029) {
+			if ((cAlphaVersion() || cBetaVersion()) && Local::oldMapVersion() < 1000036) {
+				versionFeatures = QString::fromUtf8("\xE2\x80\x94 Telegram Calls are now available on desktops: secure, crystal-clear, constantly improved by artificial intelligence.\n\xE2\x80\x94 Bug fixes and other minor improvements.");
+			} else if (!(cAlphaVersion() || cBetaVersion()) && Local::oldMapVersion() < 1001000) {
 				versionFeatures = langNewVersionText();
 			} else {
 				versionFeatures = lang(lng_new_version_minor).trimmed();
@@ -739,7 +756,9 @@ void Messenger::clearPasscode() {
 	_passcodedChanged.notify();
 }
 
-void Messenger::prepareToDestroy() {
+Messenger::~Messenger() {
+	Expects(SingleInstance == this);
+
 	_window.reset();
 
 	// Some MTP requests can be cancelled from data clearing.
@@ -748,11 +767,6 @@ void Messenger::prepareToDestroy() {
 
 	_mtproto.reset();
 	_mtprotoForKeysDestroy.reset();
-}
-
-Messenger::~Messenger() {
-	t_assert(SingleInstance == this);
-	SingleInstance = nullptr;
 
 	Shortcuts::finish();
 
@@ -772,8 +786,49 @@ Messenger::~Messenger() {
 	Local::finish();
 	Global::finish();
 	ThirdParty::finish();
+
+	SingleInstance = nullptr;
 }
 
 MainWindow *Messenger::mainWindow() {
 	return _window.get();
+}
+
+QPoint Messenger::getPointForCallPanelCenter() const {
+	Expects(_window != nullptr);
+	Expects(_window->windowHandle() != nullptr);
+	if (_window->isActive()) {
+		return _window->geometry().center();
+	}
+	return _window->windowHandle()->screen()->geometry().center();
+}
+
+void Messenger::QuitAttempt() {
+	auto prevents = false;
+	if (!Sandbox::isSavingSession() && AuthSession::Exists()) {
+		if (AuthSession::Current().api().isQuitPrevent()) {
+			prevents = true;
+		}
+		if (AuthSession::Current().calls().isQuitPrevent()) {
+			prevents = true;
+		}
+	}
+	if (prevents) {
+		Instance().quitDelayed();
+	} else {
+		QCoreApplication::quit();
+	}
+}
+
+void Messenger::quitPreventFinished() {
+	if (App::quitting()) {
+		QuitAttempt();
+	}
+}
+
+void Messenger::quitDelayed() {
+	if (!_private->quitTimer.isActive()) {
+		_private->quitTimer.setCallback([] { QCoreApplication::quit(); });
+		_private->quitTimer.callOnce(kQuitPreventTimeoutMs);
+	}
 }

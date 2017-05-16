@@ -94,12 +94,15 @@ void ConnectingWidget::onReconnect() {
 }
 
 MainWindow::MainWindow() {
-	icon16 = icon256.scaledToWidth(16, Qt::SmoothTransformation);
-	icon32 = icon256.scaledToWidth(32, Qt::SmoothTransformation);
-	icon64 = icon256.scaledToWidth(64, Qt::SmoothTransformation);
-	iconbig16 = iconbig256.scaledToWidth(16, Qt::SmoothTransformation);
-	iconbig32 = iconbig256.scaledToWidth(32, Qt::SmoothTransformation);
-	iconbig64 = iconbig256.scaledToWidth(64, Qt::SmoothTransformation);
+	auto logo = Messenger::Instance().logo();
+	icon16 = logo.scaledToWidth(16, Qt::SmoothTransformation);
+	icon32 = logo.scaledToWidth(32, Qt::SmoothTransformation);
+	icon64 = logo.scaledToWidth(64, Qt::SmoothTransformation);
+
+	auto logoNoMargin = Messenger::Instance().logoNoMargin();
+	iconbig16 = logoNoMargin.scaledToWidth(16, Qt::SmoothTransformation);
+	iconbig32 = logoNoMargin.scaledToWidth(32, Qt::SmoothTransformation);
+	iconbig64 = logoNoMargin.scaledToWidth(64, Qt::SmoothTransformation);
 
 	resize(st::windowDefaultWidth, st::windowDefaultHeight);
 
@@ -904,10 +907,6 @@ void MainWindow::app_activateClickHandler(ClickHandlerPtr handler, Qt::MouseButt
 	handler->onClick(button);
 }
 
-QImage MainWindow::iconLarge() const {
-	return iconbig256;
-}
-
 void MainWindow::placeSmallCounter(QImage &img, int size, int count, style::color bg, const QPoint &shift, style::color color) {
 	QPainter p(&img);
 
@@ -1040,15 +1039,12 @@ MainWindow::~MainWindow() {
 	delete trayIconMenu;
 }
 
-PreLaunchWindow *PreLaunchWindowInstance = 0;
+PreLaunchWindow *PreLaunchWindowInstance = nullptr;
 
-PreLaunchWindow::PreLaunchWindow(QString title) : TWidget(0) {
-	Fonts::start();
+PreLaunchWindow::PreLaunchWindow(QString title) {
+	Fonts::Start();
 
-	QIcon icon(App::pixmapFromImageInPlace(QImage(cPlatform() == dbipMac ? qsl(":/gui/art/iconbig256.png") : qsl(":/gui/art/icon256.png"))));
-	if (cPlatform() == dbipLinux32 || cPlatform() == dbipLinux64) {
-		icon = QIcon::fromTheme("telegram", icon);
-	}
+	auto icon = Window::CreateIcon();
 	setWindowIcon(icon);
 	setWindowFlags(Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowCloseButtonHint);
 
@@ -1084,13 +1080,13 @@ PreLaunchWindow *PreLaunchWindow::instance() {
 
 PreLaunchWindow::~PreLaunchWindow() {
 	if (PreLaunchWindowInstance == this) {
-		PreLaunchWindowInstance = 0;
+		PreLaunchWindowInstance = nullptr;
 	}
 }
 
 PreLaunchLabel::PreLaunchLabel(QWidget *parent) : QLabel(parent) {
 	QFont labelFont(font());
-	labelFont.setFamily(qsl("Open Sans Semibold"));
+	labelFont.setFamily(Fonts::GetOverride(qsl("Open Sans Semibold")));
 	labelFont.setPixelSize(static_cast<PreLaunchWindow*>(parent)->basicSize());
 	setFont(labelFont);
 
@@ -1108,7 +1104,7 @@ void PreLaunchLabel::setText(const QString &text) {
 
 PreLaunchInput::PreLaunchInput(QWidget *parent, bool password) : QLineEdit(parent) {
 	QFont logFont(font());
-	logFont.setFamily(qsl("Open Sans"));
+	logFont.setFamily(Fonts::GetOverride(qsl("Open Sans")));
 	logFont.setPixelSize(static_cast<PreLaunchWindow*>(parent)->basicSize());
 	setFont(logFont);
 
@@ -1126,7 +1122,7 @@ PreLaunchInput::PreLaunchInput(QWidget *parent, bool password) : QLineEdit(paren
 
 PreLaunchLog::PreLaunchLog(QWidget *parent) : QTextEdit(parent) {
 	QFont logFont(font());
-	logFont.setFamily(qsl("Open Sans"));
+	logFont.setFamily(Fonts::GetOverride(qsl("Open Sans")));
 	logFont.setPixelSize(static_cast<PreLaunchWindow*>(parent)->basicSize());
 	setFont(logFont);
 
@@ -1148,7 +1144,7 @@ PreLaunchButton::PreLaunchButton(QWidget *parent, bool confirm) : QPushButton(pa
 	setObjectName(confirm ? "confirm" : "cancel");
 
 	QFont closeFont(font());
-	closeFont.setFamily(qsl("Open Sans Semibold"));
+	closeFont.setFamily(Fonts::GetOverride(qsl("Open Sans Semibold")));
 	closeFont.setPixelSize(static_cast<PreLaunchWindow*>(parent)->basicSize());
 	setFont(closeFont);
 
@@ -1167,7 +1163,7 @@ PreLaunchCheckbox::PreLaunchCheckbox(QWidget *parent) : QCheckBox(parent) {
 	setCheckState(Qt::Checked);
 
 	QFont closeFont(font());
-	closeFont.setFamily(qsl("Open Sans Semibold"));
+	closeFont.setFamily(Fonts::GetOverride(qsl("Open Sans Semibold")));
 	closeFont.setPixelSize(static_cast<PreLaunchWindow*>(parent)->basicSize());
 	setFont(closeFont);
 

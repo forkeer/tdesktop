@@ -75,6 +75,9 @@ namespace {
 
 constexpr auto kStickersUpdateTimeout = 3600000; // update not more than once in an hour
 constexpr auto kSaveTabbedSelectorSectionTimeout = 1000;
+constexpr auto kMessagesPerPageFirst = 30;
+constexpr auto kMessagesPerPage = 50;
+constexpr auto kPreloadHeightsCount = 3; // when 3 screens to scroll left make a preload request
 
 ApiWrap::RequestMessageDataCallback replyEditMessageDataCallback() {
 	return [](ChannelData *channel, MsgId msgId) {
@@ -746,6 +749,7 @@ void HistoryWidget::setReportSpamStatus(DBIPeerReportSpamStatus status) {
 	}
 	_reportSpamStatus = status;
 	if (_reportSpamStatus == dbiprsShowButton || _reportSpamStatus == dbiprsReportSent) {
+		t_assert(_peer != nullptr);
 		_reportSpamPanel.create(this);
 		connect(_reportSpamPanel, SIGNAL(reportClicked()), this, SLOT(onReportSpamClicked()));
 		connect(_reportSpamPanel, SIGNAL(hideClicked()), this, SLOT(onReportSpamHide()));
@@ -982,7 +986,7 @@ void HistoryWidget::setInnerFocus() {
 	if (_scroll->isHidden()) {
 		setFocus();
 	} else if (_list) {
-		if (_selCount || (_list && _list->wasSelectedText()) || _recording || isBotStart() || isBlocked() || !_canSendMessages) {
+		if (_nonEmptySelection || (_list && _list->wasSelectedText()) || _recording || isBotStart() || isBlocked() || !_canSendMessages) {
 			_list->setFocus();
 		} else {
 			_field->setFocus();
@@ -1748,8 +1752,8 @@ void HistoryWidget::showHistory(const PeerId &peerId, MsgId showAtMsgId, bool re
 	_titlePeerTextWidth = 0;
 
 	noSelectingScroll();
-	_selCount = 0;
-	_topBar->showSelected(0);
+	_nonEmptySelection = false;
+	_topBar->showSelected(Window::TopBarWidget::SelectedState {});
 
 	App::hoveredItem(nullptr);
 	App::pressedItem(nullptr);
@@ -1825,6 +1829,8 @@ void HistoryWidget::showHistory(const PeerId &peerId, MsgId showAtMsgId, bool re
 		clearFieldText();
 		doneShow();
 	}
+
+	updateOverStates(mapFromGlobal(QCursor::pos()));
 
 	if (App::wnd()) QTimer::singleShot(0, App::wnd(), SLOT(setInnerFocus()));
 
@@ -2252,7 +2258,7 @@ bool HistoryWidget::messagesFailed(const RPCError &error, mtpRequestId requestId
 	if (MTP::isDefaultHandledError(error)) return false;
 
 	if (error.type() == qstr("CHANNEL_PRIVATE") || error.type() == qstr("CHANNEL_PUBLIC_GROUP_NA") || error.type() == qstr("USER_BANNED_IN_CHANNEL")) {
-		PeerData *was = _peer;
+		auto was = _peer;
 		App::main()->showBackFromStack();
 		Ui::show(Box<InformBox>(lang((was && was->isMegagroup()) ? lng_group_not_accessible : lng_channel_not_accessible)));
 		return true;
@@ -2434,8 +2440,10 @@ bool HistoryWidget::historyHasNotFreezedUnreadBar(History *history) const {
 void HistoryWidget::firstLoadMessages() {
 	if (!_history || _firstLoadRequest) return;
 
-	PeerData *from = _peer;
-	int32 offset_id = 0, offset = 0, loadCount = MessagesPerPage;
+	auto from = _peer;
+	auto offset_id = 0;
+	auto offset = 0;
+	auto loadCount = kMessagesPerPage;
 	if (_showAtMsgId == ShowAtUnreadMsgId) {
 		if (_migrated && _migrated->unreadCount()) {
 			_history->getReadyFor(_showAtMsgId);
@@ -2451,7 +2459,7 @@ void HistoryWidget::firstLoadMessages() {
 		}
 	} else if (_showAtMsgId == ShowAtTheEndMsgId) {
 		_history->getReadyFor(_showAtMsgId);
-		loadCount = MessagesFirstLoad;
+		loadCount = kMessagesPerPageFirst;
 	} else if (_showAtMsgId > 0) {
 		_history->getReadyFor(_showAtMsgId);
 		offset = -loadCount / 2;
@@ -2483,8 +2491,9 @@ void HistoryWidget::loadMessages() {
 		return;
 	}
 
-	MsgId offset_id = from->minMsgId();
-	int32 offset = 0, loadCount = offset_id ? MessagesPerPage : MessagesFirstLoad;
+	auto offset_id = from->minMsgId();
+	auto offset = 0;
+	auto loadCount = offset_id ? kMessagesPerPage : kMessagesPerPageFirst;
 
 	_preloadRequest = MTP::send(MTPmessages_GetHistory(from->peer->input, MTP_int(offset_id), MTP_int(0), MTP_int(offset), MTP_int(loadCount), MTP_int(0), MTP_int(0)), rpcDone(&HistoryWidget::messagesReceived, from->peer), rpcFail(&HistoryWidget::messagesFailed));
 }
@@ -2502,9 +2511,9 @@ void HistoryWidget::loadMessagesDown() {
 		return;
 	}
 
-	int32 loadCount = MessagesPerPage, offset = -loadCount;
-
-	MsgId offset_id = from->maxMsgId();
+	auto loadCount = kMessagesPerPage;
+	auto offset = -loadCount;
+	auto offset_id = from->maxMsgId();
 	if (!offset_id) {
 		if (loadMigrated || !_migrated) return;
 		++offset_id;
@@ -2520,8 +2529,10 @@ void HistoryWidget::delayedShowAt(MsgId showAtMsgId) {
 	clearDelayedShowAt();
 	_delayedShowAtMsgId = showAtMsgId;
 
-	PeerData *from = _peer;
-	int32 offset_id = 0, offset = 0, loadCount = MessagesPerPage;
+	auto from = _peer;
+	auto offset_id = 0;
+	auto offset = 0;
+	auto loadCount = kMessagesPerPage;
 	if (_delayedShowAtMsgId == ShowAtUnreadMsgId) {
 		if (_migrated && _migrated->unreadCount()) {
 			from = _migrated->peer;
@@ -2531,10 +2542,10 @@ void HistoryWidget::delayedShowAt(MsgId showAtMsgId) {
 			offset = -loadCount / 2;
 			offset_id = _history->inboxReadBefore;
 		} else {
-			loadCount = MessagesFirstLoad;
+			loadCount = kMessagesPerPageFirst;
 		}
 	} else if (_delayedShowAtMsgId == ShowAtTheEndMsgId) {
-		loadCount = MessagesFirstLoad;
+		loadCount = kMessagesPerPageFirst;
 	} else if (_delayedShowAtMsgId > 0) {
 		offset = -loadCount / 2;
 		offset_id = _delayedShowAtMsgId;
@@ -2575,11 +2586,11 @@ void HistoryWidget::preloadHistoryIfNeeded() {
 	updateHistoryDownVisibility();
 
 	int st = _scroll->scrollTop(), stm = _scroll->scrollTopMax(), sh = _scroll->height();
-	if (st + PreloadHeightsCount * sh > stm) {
+	if (st + kPreloadHeightsCount * sh >= stm) {
 		loadMessagesDown();
 	}
 
-	if (st < PreloadHeightsCount * sh) {
+	if (st <= kPreloadHeightsCount * sh) {
 		loadMessages();
 	}
 
@@ -2916,7 +2927,7 @@ void HistoryWidget::showAnimated(Window::SlideDirection direction, const Window:
 
 	_cacheUnder = params.oldContentCache;
 	show();
-	_topBar->showAll();
+	_topBar->updateControlsVisibility();
 	historyDownAnimationFinish();
 	_topShadow->setVisible(params.withTopBarShadow ? false : true);
 	_cacheOver = App::main()->grabForShowAnimation(params);
@@ -3631,7 +3642,7 @@ bool HistoryWidget::paintTopBar(Painter &p, int decreaseWidth, TimeMs ms) {
 	auto nameleft = st::topBarArrowPadding.right() + increaseLeft;
 	auto nametop = st::topBarArrowPadding.top();
 	auto statustop = st::topBarHeight - st::topBarArrowPadding.bottom() - st::dialogsTextFont->height;
-	auto namewidth = width() - decreaseWidth - nameleft - st::topBarArrowPadding.right();
+	auto namewidth = _chatWidth - decreaseWidth - nameleft - st::topBarArrowPadding.right();
 	p.setFont(st::dialogsTextFont);
 	if (!_history->paintSendAction(p, nameleft, statustop, namewidth, width(), st::historyStatusFgTyping, ms)) {
 		p.setPen(_titlePeerTextOnline ? st::historyStatusFgActive : st::historyStatusFg);
@@ -3699,13 +3710,17 @@ void HistoryWidget::topBarClick() {
 
 void HistoryWidget::updateTabbedSelectorSectionShown() {
 	auto tabbedSelectorSectionEnabled = AuthSession::Current().data().tabbedSelectorSectionEnabled();
-	auto shown = tabbedSelectorSectionEnabled && (width() >= minimalWidthForTabbedSelectorSection());
-	auto shownNow = (_tabbedSection != nullptr);
-	if (shown == shownNow) {
+	auto useTabbedSection = tabbedSelectorSectionEnabled && (width() >= minimalWidthForTabbedSelectorSection());
+	if (_tabbedSectionUsed == useTabbedSection) {
 		return;
 	}
+	_tabbedSectionUsed = useTabbedSection;
 
-	if (shown) {
+	// Use a separate bool flag instead of just (_tabbedSection != nullptr), because
+	// _tabbedPanel->takeSelector() calls QWidget::render(), which calls
+	// sendPendingMoveAndResizeEvents() for all widgets in the window, which can lead
+	// to a new HistoryWidget::resizeEvent() call and an infinite recursion here.
+	if (_tabbedSectionUsed) {
 		_tabbedSection.create(this, _controller, _tabbedPanel->takeSelector());
 		_tabbedSection->setCancelledCallback([this] { setInnerFocus(); });
 		_rightShadow.create(this, st::shadowFg);
@@ -3720,8 +3735,12 @@ void HistoryWidget::updateTabbedSelectorSectionShown() {
 	orderWidgets();
 }
 
+int HistoryWidget::tabbedSelectorSectionWidth() const {
+	return st::emojiPanWidth;
+}
+
 int HistoryWidget::minimalWidthForTabbedSelectorSection() const {
-	return st::windowMinWidth + st::emojiPanWidth;
+	return st::windowMinWidth + tabbedSelectorSectionWidth();
 }
 
 void HistoryWidget::toggleTabbedSelectorMode() {
@@ -4344,28 +4363,30 @@ void HistoryWidget::onDocumentFailed(const FullMsgId &newId) {
 }
 
 void HistoryWidget::onReportSpamClicked() {
-	_clearPeer = _peer;
 	auto text = lang(_peer->isUser() ? lng_report_spam_sure : ((_peer->isChat() || _peer->isMegagroup()) ? lng_report_spam_sure_group : lng_report_spam_sure_channel));
-	Ui::show(Box<ConfirmBox>(text, lang(lng_report_spam_ok), st::attentionBoxButton, base::lambda_guarded(this, [this] {
+	Ui::show(Box<ConfirmBox>(text, lang(lng_report_spam_ok), st::attentionBoxButton, base::lambda_guarded(this, [this, peer = _peer] {
 		if (_reportSpamRequest) return;
 
 		Ui::hideLayer();
-		if (_clearPeer->isUser()) MTP::send(MTPcontacts_Block(_clearPeer->asUser()->inputUser), rpcDone(&HistoryWidget::blockDone, _clearPeer), RPCFailHandlerPtr(), 0, 5);
-		_reportSpamRequest = MTP::send(MTPmessages_ReportSpam(_clearPeer->input), rpcDone(&HistoryWidget::reportSpamDone, _clearPeer), rpcFail(&HistoryWidget::reportSpamFail));
+		if (auto user = peer->asUser()) {
+			MTP::send(MTPcontacts_Block(user->inputUser), rpcDone(&HistoryWidget::blockDone, peer), RPCFailHandlerPtr(), 0, 5);
+		}
+		_reportSpamRequest = MTP::send(MTPmessages_ReportSpam(peer->input), rpcDone(&HistoryWidget::reportSpamDone, peer), rpcFail(&HistoryWidget::reportSpamFail));
 	})));
 }
 
 void HistoryWidget::reportSpamDone(PeerData *peer, const MTPBool &result, mtpRequestId req) {
+	Expects(peer != nullptr);
 	if (req == _reportSpamRequest) {
 		_reportSpamRequest = 0;
 	}
-	if (peer) {
-		cRefReportSpamStatuses().insert(peer->id, dbiprsReportSent);
-		Local::writeReportSpamStatuses();
-	}
-	setReportSpamStatus(dbiprsReportSent);
-	if (_reportSpamPanel) {
-		_reportSpamPanel->setReported(_reportSpamStatus == dbiprsReportSent, peer);
+	cRefReportSpamStatuses().insert(peer->id, dbiprsReportSent);
+	Local::writeReportSpamStatuses();
+	if (_peer == peer) {
+		setReportSpamStatus(dbiprsReportSent);
+		if (_reportSpamPanel) {
+			_reportSpamPanel->setReported(_reportSpamStatus == dbiprsReportSent, peer);
+		}
 	}
 }
 
@@ -4390,18 +4411,18 @@ void HistoryWidget::onReportSpamHide() {
 }
 
 void HistoryWidget::onReportSpamClear() {
-	_clearPeer = _peer;
-	if (_clearPeer->isUser()) {
-		App::main()->deleteConversation(_clearPeer);
-	} else if (_clearPeer->isChat()) {
+	Expects(_peer != nullptr);
+	if (_peer->isUser()) {
+		App::main()->deleteConversation(_peer);
+	} else if (auto chat = _peer->asChat()) {
 		App::main()->showBackFromStack();
-		MTP::send(MTPmessages_DeleteChatUser(_clearPeer->asChat()->inputChat, App::self()->inputUser), App::main()->rpcDone(&MainWidget::deleteHistoryAfterLeave, _clearPeer), App::main()->rpcFail(&MainWidget::leaveChatFailed, _clearPeer));
-	} else if (_clearPeer->isChannel()) {
+		MTP::send(MTPmessages_DeleteChatUser(chat->inputChat, App::self()->inputUser), App::main()->rpcDone(&MainWidget::deleteHistoryAfterLeave, _peer), App::main()->rpcFail(&MainWidget::leaveChatFailed, _peer));
+	} else if (auto channel = _peer->asChannel()) {
 		App::main()->showBackFromStack();
-		if (_clearPeer->migrateFrom()) {
-			App::main()->deleteConversation(_clearPeer->migrateFrom());
+		if (channel->migrateFrom()) {
+			App::main()->deleteConversation(channel->migrateFrom());
 		}
-		MTP::send(MTPchannels_LeaveChannel(_clearPeer->asChannel()->inputChannel), App::main()->rpcDone(&MainWidget::sentUpdatesReceived));
+		MTP::send(MTPchannels_LeaveChannel(channel->inputChannel), App::main()->rpcDone(&MainWidget::sentUpdatesReceived));
 	}
 }
 
@@ -5422,10 +5443,10 @@ void HistoryWidget::onPinnedHide() {
 }
 
 void HistoryWidget::onCopyPostLink() {
-	HistoryItem *to = App::contextItem();
-	if (!to || !to->hasDirectLink()) return;
+	auto item = App::contextItem();
+	if (!item || !item->hasDirectLink()) return;
 
-	QApplication::clipboard()->setText(to->directLink());
+	QApplication::clipboard()->setText(item->directLink());
 }
 
 bool HistoryWidget::lastForceReplyReplied(const FullMsgId &replyTo) const {
@@ -5756,7 +5777,7 @@ void HistoryWidget::peerUpdated(PeerData *data) {
 		if (App::api()) {
 			if (data->isChat() && data->asChat()->noParticipantInfo()) {
 				App::api()->requestFullPeer(data);
-			} else if (data->isUser() && data->asUser()->blockStatus() == UserData::BlockStatus::Unknown) {
+			} else if (data->isUser() && (data->asUser()->blockStatus() == UserData::BlockStatus::Unknown || data->asUser()->callsStatus() == UserData::CallsStatus::Unknown)) {
 				App::api()->requestFullPeer(data);
 			} else if (data->isMegagroup() && !data->asChannel()->mgInfo->botStatus) {
 				App::api()->requestBots(data->asChannel());
@@ -5860,7 +5881,7 @@ void HistoryWidget::deleteSelectedItems(bool forEveryone) {
 }
 
 void HistoryWidget::onListEscapePressed() {
-	if (_selCount && _list) {
+	if (_nonEmptySelection && _list) {
 		onClearSelected();
 	} else {
 		onCancel();
@@ -5911,18 +5932,17 @@ void HistoryWidget::fillSelectedItems(SelectedItemSet &sel, bool forDelete) {
 
 void HistoryWidget::updateTopBarSelection() {
 	if (!_list) {
-		_topBar->showSelected(0);
+		_topBar->showSelected(Window::TopBarWidget::SelectedState {});
 		return;
 	}
 
-	int32 selectedForForward, selectedForDelete;
-	_list->getSelectionState(selectedForForward, selectedForDelete);
-	_selCount = selectedForForward ? selectedForForward : selectedForDelete;
-	_topBar->showSelected(_selCount > 0 ? _selCount : 0, (selectedForDelete == selectedForForward));
+	auto selectedState = _list->getSelectionState();
+	_nonEmptySelection = (selectedState.count > 0) || selectedState.textSelected;
+	_topBar->showSelected(selectedState);
 	updateControlsVisibility();
 	updateListSize();
 	if (!Ui::isLayerShown() && !App::passcoded()) {
-		if (_selCount || (_list && _list->wasSelectedText()) || _recording || isBotStart() || isBlocked() || !_canSendMessages) {
+		if (_nonEmptySelection || (_list && _list->wasSelectedText()) || _recording || isBotStart() || isBlocked() || !_canSendMessages) {
 			_list->setFocus();
 		} else {
 			_field->setFocus();

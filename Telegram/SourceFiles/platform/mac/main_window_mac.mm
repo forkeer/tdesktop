@@ -73,7 +73,6 @@ public:
 
 	void willEnterFullScreen();
 	void willExitFullScreen();
-	void activateCustomNotifications();
 
 	void initCustomTitle(NSWindow *window, NSView *view);
 
@@ -92,25 +91,6 @@ private:
 
 };
 
-class MainWindow::CustomNotificationHandle : public QObject {
-public:
-	CustomNotificationHandle(QWidget *parent) : QObject(parent) {
-	}
-
-	void activate() {
-		auto widget = static_cast<QWidget*>(parent());
-		NSWindow *wnd = [reinterpret_cast<NSView *>(widget->winId()) window];
-		[wnd orderFront:wnd];
-	}
-
-	~CustomNotificationHandle() {
-		if (auto window = App::wnd()) {
-			window->customNotificationDestroyed(this);
-		}
-	}
-
-};
-
 } // namespace Platform
 
 @implementation MainWindowObserver {
@@ -126,7 +106,6 @@ public:
 }
 
 - (void) activeSpaceDidChange:(NSNotification *)aNotification {
-	_private->activateCustomNotifications();
 }
 
 - (void) darkModeChanged:(NSNotification *)aNotification {
@@ -211,10 +190,6 @@ void MainWindow::Private::willExitFullScreen() {
 	_public->setTitleVisible(true);
 }
 
-void MainWindow::Private::activateCustomNotifications() {
-	_public->activateCustomNotifications();
-}
-
 void MainWindow::Private::enableShadow(WId winId) {
 //	[[(NSView*)winId window] setStyleMask:NSBorderlessWindowMask];
 //	[[(NSView*)winId window] setHasShadow:YES];
@@ -240,10 +215,7 @@ MainWindow::Private::~Private() {
 }
 
 MainWindow::MainWindow()
-: icon256(qsl(":/gui/art/icon256.png"))
-, iconbig256(qsl(":/gui/art/iconbig256.png"))
-, wndIcon(QPixmap::fromImage(iconbig256, Qt::ColorOnly))
-, _private(std::make_unique<Private>(this)) {
+: _private(std::make_unique<Private>(this)) {
 	trayImg = st::macTrayIcon.instance(QColor(0, 0, 0, 180), dbisOne);
 	trayImgSel = st::macTrayIcon.instance(QColor(255, 255, 255), dbisOne);
 
@@ -278,6 +250,9 @@ void MainWindow::initHook() {
 			}
 		}
 	}
+}
+
+void MainWindow::updateWindowIcon() {
 }
 
 void MainWindow::titleVisibilityChangedHook() {
@@ -525,20 +500,6 @@ void MainWindow::psUpdateSysMenu(Qt::WindowState state) {
 }
 
 void MainWindow::psUpdateMargins() {
-}
-
-void MainWindow::customNotificationCreated(QWidget *notification) {
-	_customNotifications.insert(object_ptr<CustomNotificationHandle>(notification));
-}
-
-void MainWindow::customNotificationDestroyed(CustomNotificationHandle *handle) {
-	_customNotifications.erase(handle);
-}
-
-void MainWindow::activateCustomNotifications() {
-	for (auto handle : _customNotifications) {
-		handle->activate();
-	}
 }
 
 void MainWindow::updateGlobalMenuHook() {
