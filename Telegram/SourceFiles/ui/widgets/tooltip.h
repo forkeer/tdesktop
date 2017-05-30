@@ -21,6 +21,7 @@
 
 namespace style {
 struct Tooltip;
+struct ImportantTooltip;
 } // namespace style
 
 namespace Ui {
@@ -71,6 +72,48 @@ private:
 	base::Timer _hideByLeaveTimer;
 	bool _isEventFilter = false;
 	bool _useTransparency = true;
+
+};
+
+class ImportantTooltip : public TWidget {
+public:
+	ImportantTooltip(QWidget *parent, object_ptr<TWidget> content, const style::ImportantTooltip &st);
+
+	void pointAt(QRect area, RectParts preferSide = RectPart::Top | RectPart::Left);
+
+	void toggleAnimated(bool visible);
+	void toggleFast(bool visible);
+	void hideAfter(TimeMs timeout);
+
+	void setHiddenCallback(base::lambda<void()> callback) {
+		_hiddenCallback = std::move(callback);
+	}
+
+protected:
+	void resizeEvent(QResizeEvent *e);
+	void paintEvent(QPaintEvent *e);
+
+private:
+	void animationCallback();
+	QRect countInner() const;
+	void setArea(QRect area);
+	void countApproachSide(RectParts preferSide);
+	void updateGeometry();
+	void checkAnimationFinish();
+	void refreshAnimationCache();
+
+	base::Timer _hideTimer;
+	const style::ImportantTooltip &_st;
+	object_ptr<TWidget> _content;
+	QRect _area;
+	RectParts _side = RectPart::Top | RectPart::Left;
+	QPixmap _arrow;
+
+	Animation _visibleAnimation;
+	bool _visible = false;
+	base::lambda<void()> _hiddenCallback;
+	bool _useTransparency = true;
+	QPixmap _cache;
 
 };
 

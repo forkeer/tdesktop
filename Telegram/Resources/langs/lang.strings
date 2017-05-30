@@ -780,6 +780,7 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 "lng_emoji_category5" = "Travel & Places";
 "lng_emoji_category6" = "Objects";
 "lng_emoji_category7" = "Symbols & Flags";
+"lng_emoji_hide_panel" = "Click here to hide the emoji sidebar";
 
 "lng_recent_stickers" = "Frequently used";
 "lng_switch_stickers" = "Stickers";
@@ -957,6 +958,7 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 "lng_context_delete_file" = "Delete File";
 "lng_context_close_file" = "Close File";
 "lng_context_copy_text" = "Copy Text";
+"lng_context_open_gif" = "Open GIF";
 "lng_context_save_gif" = "Save GIF";
 "lng_context_to_msg" = "Go To Message";
 "lng_context_reply_msg" = "Reply";
@@ -1162,6 +1164,10 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 
 "lng_call_rate_label" = "Please rate the quality of your call";
 "lng_call_rate_comment" = "Comment (optional)";
+
+"lng_player_message_today" = "Today at {time}";
+"lng_player_message_yesterday" = "Yesterday at {time}";
+"lng_player_message_date" = "{date} at {time}";
 
 // Not used
 

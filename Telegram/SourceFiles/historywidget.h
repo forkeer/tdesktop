@@ -161,7 +161,7 @@ private:
 
 };
 
-class HistoryWidget : public TWidget, public RPCSender, private base::Subscriber {
+class HistoryWidget final : public Window::AbstractSectionWidget, public RPCSender {
 	Q_OBJECT
 
 public:
@@ -180,6 +180,7 @@ public:
 	void dragLeaveEvent(QDragLeaveEvent *e) override;
     void dropEvent(QDropEvent *e) override;
 
+	bool isItemCompletelyHidden(HistoryItem *item) const;
 	void updateTopBarSelection();
 
 	bool paintTopBar(Painter &p, int decreaseWidth, TimeMs ms);
@@ -202,6 +203,7 @@ public:
 	QRect historyRect() const;
 	int tabbedSelectorSectionWidth() const;
 	int minimalWidthForTabbedSelectorSection() const;
+	bool willSwitchToTabbedSelectorWithWidth(int newWidth) const;
 
 	void updateSendAction(History *history, SendAction::Type type, int32 progress = 0);
 	void cancelSendAction(History *history, SendAction::Type type);
@@ -335,6 +337,10 @@ public:
 	void confirmDeleteSelectedItems();
 	void deleteContextItem(bool forEveryone);
 	void deleteSelectedItems(bool forEveryone);
+
+	// Float player interface.
+	bool wheelEventFromFloatPlayer(QEvent *e, Window::Column myColumn, Window::Column playerColumn) override;
+	QRect rectForFloatPlayer(Window::Column myColumn, Window::Column playerColumn) override;
 
 	void app_sendBotCallback(const HistoryMessageReplyMarkup::Button *button, const HistoryItem *msg, int row, int col);
 
@@ -510,6 +516,8 @@ private:
 	// like send button, emoji button and others.
 	void moveFieldControls();
 	void updateFieldSize();
+	void updateTabbedSelectorToggleTooltipGeometry();
+	void checkTabbedSelectorToggleTooltip();
 
 	bool historyHasNotFreezedUnreadBar(History *history) const;
 	bool canWriteMessage() const;
@@ -528,8 +536,6 @@ private:
 
 	void hideSelectorControlsAnimated();
 	int countMembersDropdownHeightMax() const;
-
-	gsl::not_null<Window::Controller*> _controller;
 
 	MsgId _replyToId = 0;
 	Text _replyToName;
@@ -630,7 +636,8 @@ private:
 		ScrollChangeType type;
 		int value;
 	};
-	void updateListSize(bool initial = false, bool loadedDown = false, const ScrollChange &change = { ScrollChangeNone, 0 });
+	void updateHistoryGeometry(bool initial = false, bool loadedDown = false, const ScrollChange &change = { ScrollChangeNone, 0 });
+	void updateListSize();
 
 	// Does any of the shown histories has this flag set.
 	bool hasPendingResizedItems() const {
@@ -640,6 +647,13 @@ private:
 	// Counts scrollTop for placing the scroll right at the unread
 	// messages bar, choosing from _history and _migrated unreadBar.
 	int unreadBarTop() const;
+	int itemTopForHighlight(gsl::not_null<HistoryItem*> item) const;
+	void scrollToCurrentVoiceMessage(FullMsgId fromId, FullMsgId toId);
+
+	// Scroll to current y without updating the _lastUserScrolled time.
+	// Used to distinguish between user scrolls and syntetic scrolls.
+	// This one is syntetic.
+	void synteticScrollToY(int y);
 
 	void saveGifDone(DocumentData *doc, const MTPBool &result);
 
@@ -685,11 +699,20 @@ private:
 		setFieldText(TextWithTags(), events, undoHistoryAction);
 	}
 
+	HistoryItem *getItemFromHistoryOrMigrated(MsgId genericMsgId) const;
+	void animatedScrollToItem(MsgId msgId);
+	void animatedScrollToY(int scrollTo, HistoryItem *attachTo = nullptr);
+	void highlightMessage(HistoryItem *context);
 	void updateDragAreas();
 
 	// when scroll position or scroll area size changed this method
 	// updates the boundings of the visible area in HistoryInner
 	void visibleAreaUpdated();
+	int countInitialScrollTop();
+	int countAutomaticScrollTop();
+	void preloadHistoryByScroll();
+	void checkReplyReturns();
+	void scrollToAnimationCallback(FullMsgId attachToId);
 
 	bool readyToForward() const;
 	bool hasSilentToggle() const;
@@ -715,12 +738,17 @@ private:
 	QPointer<HistoryInner> _list;
 	History *_migrated = nullptr;
 	History *_history = nullptr;
-	bool _histInited = false; // initial updateListSize() called
+	bool _historyInited = false; // Initial updateHistoryGeometry() was called.
+	bool _updateHistoryGeometryRequired = false; // If updateListSize() was called without updateHistoryGeometry().
 	int _addToScroll = 0;
 
-	int _lastScroll = 0;// gifs optimization
+	int _lastScrollTop = 0; // gifs optimization
 	TimeMs _lastScrolled = 0;
 	QTimer _updateHistoryItems;
+
+	TimeMs _lastUserScrolled = 0;
+	bool _synteticScrollEvent = false;
+	Animation _scrollToAnimation;
 
 	Animation _historyDownShown;
 	bool _historyDownIsShown = false;
@@ -755,6 +783,8 @@ private:
 	mtpRequestId _reportSpamRequest = 0;
 	object_ptr<Ui::IconButton> _attachToggle;
 	object_ptr<Ui::EmojiButton> _tabbedSelectorToggle;
+	object_ptr<Ui::ImportantTooltip> _tabbedSelectorToggleTooltip = { nullptr };
+	bool _tabbedSelectorToggleTooltipShown = false;
 	object_ptr<Ui::IconButton> _botKeyboardShow;
 	object_ptr<Ui::IconButton> _botKeyboardHide;
 	object_ptr<Ui::IconButton> _botCommandStart;
