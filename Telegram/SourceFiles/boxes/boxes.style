@@ -301,25 +301,7 @@ contactsMultiSelect: MultiSelect {
 		hiding: 1000;
 	}
 
-	item: MultiSelectItem {
-		padding: margins(6px, 7px, 12px, 0px);
-		maxWidth: 128px;
-		height: 32px;
-		style: defaultTextStyle;
-		textBg: contactsBgOver;
-		textFg: windowFg;
-		textActiveBg: activeButtonBg;
-		textActiveFg: activeButtonFg;
-		deleteFg: activeButtonFg;
-		deleteCross: CrossAnimation {
-			size: 32px;
-			skip: 10px;
-			stroke: 2px;
-			minScale: 0.3;
-		}
-		duration: 150;
-		minScale: 0.3;
-	}
+	item: defaultMultiSelectItem;
 	itemSkip: 8px;
 
 	field: contactsSearchField;
@@ -684,3 +666,16 @@ rightsHeaderLabel: FlatLabel(boxLabel) {
 	textFg: windowActiveTextFg;
 }
 rightsUntilMargin: margins(0px, 8px, 0px, 0px);
+
+mutePhotoButton: PeerAvatarButton {
+	size: 40px;
+	photoSize: 40px;
+}
+muteChatTitle: FlatLabel(boxLabel) {
+	width: 235px;
+	maxHeight: 20px;  // block word wrap
+	margin: margins(50px, 0px, 0px, 0px);  // left offset for place peer avatar
+	style: TextStyle(boxTextStyle) {
+		font: font(boxFontSize semibold);
+	}
+}

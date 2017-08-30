@@ -33,7 +33,7 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 #include "chat_helpers/message_field.h"
 #include "observer_peer.h"
 #include "apiwrap.h"
-#include "dialogswidget.h"
+#include "dialogs/dialogs_widget.h"
 #include "history/history_widget.h"
 #include "history/history_message.h"
 #include "history/history_media.h"
@@ -49,6 +49,7 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 #include "inline_bots/inline_bot_layout_item.h"
 #include "boxes/confirm_box.h"
 #include "boxes/sticker_set_box.h"
+#include "boxes/mute_settings_box.h"
 #include "boxes/contacts_box.h"
 #include "boxes/download_path_box.h"
 #include "storage/localstorage.h"
@@ -66,7 +67,6 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 #include "styles/style_boxes.h"
 #include "mtproto/dc_options.h"
 #include "core/file_utilities.h"
-#include "boxes/calendar_box.h"
 #include "auth_session.h"
 #include "window/notifications_manager.h"
 #include "window/window_controller.h"
@@ -271,7 +271,7 @@ void MainWidget::checkCurrentFloatPlayer() {
 }
 
 void MainWidget::toggleFloatPlayer(gsl::not_null<Float*> instance) {
-	auto visible = !instance->hiddenByHistory && !instance->hiddenByWidget && !instance->widget->detached();
+	auto visible = !instance->hiddenByHistory && !instance->hiddenByWidget && instance->widget->isReady();
 	if (instance->visible != visible) {
 		instance->widget->resetMouseState();
 		instance->visible = visible;
@@ -2248,8 +2248,16 @@ void MainWidget::fillPeerMenu(PeerData *peer, base::lambda<QAction*(const QStrin
 		Ui::showPeerProfile(peer);
 	});
 	auto muteSubscription = MakeShared<base::Subscription>();
-	auto muteAction = callback(lang(peer->isMuted() ? lng_enable_notifications_from_tray : lng_disable_notifications_from_tray), [peer, muteSubscription] {
-		App::main()->updateNotifySetting(peer, peer->isMuted() ? NotifySettingSetNotify : NotifySettingSetMuted);
+    auto muteAction = callback(!peer->isMuted() ? lang(lng_disable_notifications_from_tray) : lang(lng_enable_notifications_from_tray), [peer, muteSubscription] {
+		// We have to capture the muteSubscription pointer in this lambda for
+		// real time updates of the action when an user changes mute status of
+		// the peer on his (her) another device. Otherwise, the subscription
+		// will be destroyed ahead of time.
+		if (!peer->isMuted()) {
+			Ui::show(Box<MuteSettingsBox>(peer));
+		} else {
+			App::main()->updateNotifySetting(peer, NotifySettingSetNotify);
+		}
 	});
 	auto muteChangedHandler = Notify::PeerUpdatedHandler(Notify::PeerUpdate::Flag::NotificationsEnabled, [muteAction, peer](const Notify::PeerUpdate &update) {
 		if (update.peer != peer) return;
@@ -2991,97 +2999,6 @@ void MainWidget::dlgUpdated(PeerData *peer, MsgId msgId) {
 	}
 }
 
-void MainWidget::showJumpToDate(PeerData *peer, QDate requestedDate) {
-	Expects(peer != nullptr);
-	auto currentPeerDate = [peer] {
-		if (auto history = App::historyLoaded(peer)) {
-			if (history->scrollTopItem) {
-				return history->scrollTopItem->date.date();
-			} else if (history->loadedAtTop() && !history->isEmpty() && history->peer->migrateFrom()) {
-				if (auto migrated = App::historyLoaded(history->peer->migrateFrom())) {
-					if (migrated->scrollTopItem) {
-						// We're up in the migrated history.
-						// So current date is the date of first message here.
-						return history->blocks.front()->items.front()->date.date();
-					}
-				}
-			} else if (!history->lastMsgDate.isNull()) {
-				return history->lastMsgDate.date();
-			}
-		}
-		return QDate::currentDate();
-	};
-	auto maxPeerDate = [peer] {
-		if (auto history = App::historyLoaded(peer)) {
-			if (!history->lastMsgDate.isNull()) {
-				return history->lastMsgDate.date();
-			}
-		}
-		return QDate::currentDate();
-	};
-	auto minPeerDate = [peer] {
-		if (auto history = App::historyLoaded(peer)) {
-			if (history->loadedAtTop()) {
-				if (history->isEmpty()) {
-					return QDate::currentDate();
-				}
-				return history->blocks.front()->items.front()->date.date();
-			}
-		}
-		return QDate(2013, 8, 1); // Telegram was launched in August 2013 :)
-	};
-	auto highlighted = requestedDate.isNull() ? currentPeerDate() : requestedDate;
-	auto month = highlighted;
-	auto box = Box<CalendarBox>(month, highlighted, [this, peer](const QDate &date) { jumpToDate(peer, date); });
-	box->setMinDate(minPeerDate());
-	box->setMaxDate(maxPeerDate());
-	Ui::show(std::move(box));
-}
-
-void MainWidget::jumpToDate(PeerData *peer, const QDate &date) {
-	// API returns a message with date <= offset_date.
-	// So we request a message with offset_date = desired_date - 1 and add_offset = -1.
-	// This should give us the first message with date >= desired_date.
-	auto offset_date = static_cast<int>(QDateTime(date).toTime_t()) - 1;
-	auto add_offset = -1;
-	auto limit = 1;
-	auto flags = MTPmessages_Search::Flags(0);
-	auto request = MTPmessages_GetHistory(peer->input, MTP_int(0), MTP_int(offset_date), MTP_int(add_offset), MTP_int(limit), MTP_int(0), MTP_int(0));
-	MTP::send(request, ::rpcDone([peer](const MTPmessages_Messages &result) {
-		auto getMessagesList = [&result, peer]() -> const QVector<MTPMessage>* {
-			auto handleMessages = [](auto &messages) {
-				App::feedUsers(messages.vusers);
-				App::feedChats(messages.vchats);
-				return &messages.vmessages.v;
-			};
-			switch (result.type()) {
-			case mtpc_messages_messages: return handleMessages(result.c_messages_messages());
-			case mtpc_messages_messagesSlice: return handleMessages(result.c_messages_messagesSlice());
-			case mtpc_messages_channelMessages: {
-				auto &messages = result.c_messages_channelMessages();
-				if (peer && peer->isChannel()) {
-					peer->asChannel()->ptsReceived(messages.vpts.v);
-				} else {
-					LOG(("API Error: received messages.channelMessages when no channel was passed! (MainWidget::showJumpToDate)"));
-				}
-				return handleMessages(messages);
-			} break;
-			}
-			return nullptr;
-		};
-
-		if (auto list = getMessagesList()) {
-			App::feedMsgs(*list, NewMessageExisting);
-			for (auto &message : *list) {
-				auto id = idFromMessage(message);
-				Ui::showPeerHistory(peer, id);
-				return;
-			}
-		}
-		Ui::showPeerHistory(peer, ShowAtUnreadMsgId);
-	}));
-}
-
 void MainWidget::windowShown() {
 	_history->windowShown();
 }
@@ -3102,7 +3019,7 @@ bool MainWidget::deleteChannelFailed(const RPCError &error) {
 
 void MainWidget::inviteToChannelDone(ChannelData *channel, const MTPUpdates &updates) {
 	sentUpdatesReceived(updates);
-	App::api()->requestParticipantsCountDelayed(channel);
+	AuthSession::Current().api().requestParticipantsCountDelayed(channel);
 }
 
 void MainWidget::historyToDown(History *history) {
@@ -4311,11 +4228,10 @@ void MainWidget::applyNotifySetting(const MTPNotifyPeer &peer, const MTPPeerNoti
 	}
 }
 
-void MainWidget::updateNotifySetting(PeerData *peer, NotifySettingStatus notify, SilentNotifiesStatus silent) {
+void MainWidget::updateNotifySetting(PeerData *peer, NotifySettingStatus notify, SilentNotifiesStatus silent, int muteFor) {
 	if (notify == NotifySettingDontChange && silent == SilentNotifiesDontChange) return;
 
 	updateNotifySettingPeers.insert(peer);
-	int32 muteFor = 86400 * 365;
 	if (peer->notify == EmptyNotifySettings) {
 		if (notify == NotifySettingSetMuted || silent == SilentNotifiesSetSilent) {
 			peer->notify = new NotifySettings();

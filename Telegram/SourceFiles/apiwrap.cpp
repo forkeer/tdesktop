@@ -299,6 +299,7 @@ void ApiWrap::gotChatFull(PeerData *peer, const MTPmessages_ChatFull &result, mt
 			chat->photoId = 0;
 		}
 		chat->setInviteLink((f.vexported_invite.type() == mtpc_chatInviteExported) ? qs(f.vexported_invite.c_chatInviteExported().vlink) : QString());
+		chat->fullUpdated();
 
 		notifySettingReceived(MTP_inputNotifyPeer(peer->input), f.vnotify_settings);
 	} else if (auto channel = peer->asChannel()) {
@@ -426,6 +427,7 @@ void ApiWrap::gotUserFull(UserData *user, const MTPUserFull &result, mtpRequestI
 	user->setCallsStatus(d.is_phone_calls_private() ? UserData::CallsStatus::Private : d.is_phone_calls_available() ? UserData::CallsStatus::Enabled : UserData::CallsStatus::Disabled);
 	user->setAbout(d.has_about() ? qs(d.vabout) : QString());
 	user->setCommonChatsCount(d.vcommon_chats_count.v);
+	user->fullUpdated();
 
 	if (req) {
 		auto i = _fullPeerRequests.find(user);
@@ -763,7 +765,7 @@ void ApiWrap::unblockParticipant(PeerData *peer, UserData *user) {
 				if (channel->kickedCount() > 0) {
 					channel->setKickedCount(channel->kickedCount() - 1);
 				} else {
-					channel->updateFull(true);
+					channel->updateFullForced();
 				}
 			}
 		}).fail([this, kick](const RPCError &error) {
@@ -1443,7 +1445,7 @@ void ApiWrap::resolveWebPages() {
 
 void ApiWrap::requestParticipantsCountDelayed(ChannelData *channel) {
 	_participantsCountRequestTimer.call(kReloadChannelMembersTimeout, [this, channel] {
-		channel->updateFull(true);
+		channel->updateFullForced();
 	});
 }
 
@@ -1646,6 +1648,48 @@ void ApiWrap::applyUpdateNoPtsCheck(const MTPUpdate &update) {
 
 	default: Unexpected("Type in applyUpdateNoPtsCheck()");
 	}
+}
+
+void ApiWrap::jumpToDate(gsl::not_null<PeerData*> peer, const QDate &date) {
+	// API returns a message with date <= offset_date.
+	// So we request a message with offset_date = desired_date - 1 and add_offset = -1.
+	// This should give us the first message with date >= desired_date.
+	auto offset_date = static_cast<int>(QDateTime(date).toTime_t()) - 1;
+	auto add_offset = -1;
+	auto limit = 1;
+	request(MTPmessages_GetHistory(peer->input, MTP_int(0), MTP_int(offset_date), MTP_int(add_offset), MTP_int(limit), MTP_int(0), MTP_int(0))).done([peer](const MTPmessages_Messages &result) {
+		auto getMessagesList = [&result, peer]() -> const QVector<MTPMessage>* {
+			auto handleMessages = [](auto &messages) {
+				App::feedUsers(messages.vusers);
+				App::feedChats(messages.vchats);
+				return &messages.vmessages.v;
+			};
+			switch (result.type()) {
+			case mtpc_messages_messages: return handleMessages(result.c_messages_messages());
+			case mtpc_messages_messagesSlice: return handleMessages(result.c_messages_messagesSlice());
+			case mtpc_messages_channelMessages: {
+				auto &messages = result.c_messages_channelMessages();
+				if (peer && peer->isChannel()) {
+					peer->asChannel()->ptsReceived(messages.vpts.v);
+				} else {
+					LOG(("API Error: received messages.channelMessages when no channel was passed! (MainWidget::showJumpToDate)"));
+				}
+				return handleMessages(messages);
+			} break;
+			}
+			return nullptr;
+		};
+
+		if (auto list = getMessagesList()) {
+			App::feedMsgs(*list, NewMessageExisting);
+			for (auto &message : *list) {
+				auto id = idFromMessage(message);
+				Ui::showPeerHistory(peer, id);
+				return;
+			}
+		}
+		Ui::showPeerHistory(peer, ShowAtUnreadMsgId);
+	}).send();
 }
 
 ApiWrap::~ApiWrap() = default;

@@ -56,6 +56,8 @@
 <(src_loc)/boxes/language_box.h
 <(src_loc)/boxes/local_storage_box.cpp
 <(src_loc)/boxes/local_storage_box.h
+<(src_loc)/boxes/mute_settings_box.cpp
+<(src_loc)/boxes/mute_settings_box.h
 <(src_loc)/boxes/notifications_box.cpp
 <(src_loc)/boxes/notifications_box.h
 <(src_loc)/boxes/peer_list_box.cpp
@@ -98,6 +100,9 @@
 <(src_loc)/chat_helpers/bot_keyboard.h
 <(src_loc)/chat_helpers/emoji_list_widget.cpp
 <(src_loc)/chat_helpers/emoji_list_widget.h
+<(src_loc)/chat_helpers/emoji_suggestions_helper.h
+<(src_loc)/chat_helpers/emoji_suggestions_widget.cpp
+<(src_loc)/chat_helpers/emoji_suggestions_widget.h
 <(src_loc)/chat_helpers/field_autocomplete.cpp
 <(src_loc)/chat_helpers/field_autocomplete.h
 <(src_loc)/chat_helpers/gifs_list_widget.cpp
@@ -133,12 +138,18 @@
 <(src_loc)/dialogs/dialogs_common.h
 <(src_loc)/dialogs/dialogs_indexed_list.cpp
 <(src_loc)/dialogs/dialogs_indexed_list.h
+<(src_loc)/dialogs/dialogs_inner_widget.cpp
+<(src_loc)/dialogs/dialogs_inner_widget.h
 <(src_loc)/dialogs/dialogs_layout.cpp
 <(src_loc)/dialogs/dialogs_layout.h
 <(src_loc)/dialogs/dialogs_list.cpp
 <(src_loc)/dialogs/dialogs_list.h
 <(src_loc)/dialogs/dialogs_row.cpp
 <(src_loc)/dialogs/dialogs_row.h
+<(src_loc)/dialogs/dialogs_search_from_controllers.cpp
+<(src_loc)/dialogs/dialogs_search_from_controllers.h
+<(src_loc)/dialogs/dialogs_widget.cpp
+<(src_loc)/dialogs/dialogs_widget.h
 <(src_loc)/history/history.cpp
 <(src_loc)/history/history.h
 <(src_loc)/history/history_admin_log_filter.cpp
@@ -543,8 +554,6 @@
 <(src_loc)/autoupdater.h
 <(src_loc)/config.h
 <(src_loc)/countries.h
-<(src_loc)/dialogswidget.cpp
-<(src_loc)/dialogswidget.h
 <(src_loc)/facades.cpp
 <(src_loc)/facades.h
 <(src_loc)/layerwidget.cpp
@@ -577,6 +586,8 @@
 <(src_loc)/stdafx.h
 <(src_loc)/structs.cpp
 <(src_loc)/structs.h
+<(emoji_suggestions_loc)/emoji_suggestions.cpp
+<(emoji_suggestions_loc)/emoji_suggestions.h
 
 platforms: !win
 <(minizip_loc)/crypt.h

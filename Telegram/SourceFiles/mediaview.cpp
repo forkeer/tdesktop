@@ -783,6 +783,7 @@ void MediaView::onSaveAs() {
 			psShowOverAll(this);
 			if (!file.isEmpty() && file != location.name()) {
 				if (_doc->data().isEmpty()) {
+					QFile(file).remove();
 					QFile(location.name()).copy(file);
 				} else {
 					QFile f(file);
@@ -900,8 +901,11 @@ void MediaView::onDownload() {
 		if (location.accessEnable()) {
 			if (!QDir().exists(path)) QDir().mkpath(path);
 			toName = filedialogNextFilename(_doc->name, location.name(), path);
-			if (toName != location.name() && !QFile(location.name()).copy(toName)) {
-				toName = QString();
+			if (!toName.isEmpty() && toName != location.name()) {
+				QFile(toName).remove();
+				if (!QFile(location.name()).copy(toName)) {
+					toName = QString();
+				}
 			}
 			location.accessDisable();
 		} else {
@@ -1212,7 +1216,7 @@ void MediaView::displayPhoto(PhotoData *photo, HistoryItem *item) {
 	_y = (height() - _h) / 2;
 	_width = _w;
 	if (_msgid && item) {
-		_from = item->peerOriginal();
+		_from = item->senderOriginal();
 	} else {
 		_from = _user;
 	}
@@ -1366,7 +1370,7 @@ void MediaView::displayDocument(DocumentData *doc, HistoryItem *item) { // empty
 	_x = (width() - _w) / 2;
 	_y = (height() - _h) / 2;
 	if (_msgid && item) {
-		_from = item->peerOriginal();
+		_from = item->senderOriginal();
 	} else {
 		_from = _user;
 	}
