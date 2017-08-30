@@ -21,6 +21,7 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 #pragma once
 
 #include "boxes/abstract_box.h"
+#include "mtproto/sender.h"
 
 class ConfirmBox;
 
@@ -199,7 +200,7 @@ class EditNameTitleBox : public BoxContent, public RPCSender {
 	Q_OBJECT
 
 public:
-	EditNameTitleBox(QWidget*, PeerData *peer);
+	EditNameTitleBox(QWidget*, gsl::not_null<PeerData*> peer);
 
 protected:
 	void setInnerFocus() override;
@@ -218,7 +219,7 @@ private:
 	void onSaveChatDone(const MTPUpdates &updates);
 	bool onSaveChatFail(const RPCError &e);
 
-	PeerData *_peer;
+	gsl::not_null<PeerData*> _peer;
 
 	object_ptr<Ui::InputField> _first;
 	object_ptr<Ui::InputField> _last;
@@ -230,11 +231,37 @@ private:
 
 };
 
+class EditBioBox : public BoxContent, private MTP::Sender {
+public:
+	EditBioBox(QWidget*, gsl::not_null<UserData*> self);
+
+protected:
+	void setInnerFocus() override;
+	void prepare() override;
+
+	void resizeEvent(QResizeEvent *e) override;
+
+private:
+	void updateMaxHeight();
+	void handleBioUpdated();
+	void save();
+
+	style::InputField _dynamicFieldStyle;
+	gsl::not_null<UserData*> _self;
+
+	object_ptr<Ui::InputArea> _bio;
+	object_ptr<Ui::FlatLabel> _countdown;
+	object_ptr<Ui::FlatLabel> _about;
+	mtpRequestId _requestId = 0;
+	QString _sentBio;
+
+};
+
 class EditChannelBox : public BoxContent, public RPCSender {
 	Q_OBJECT
 
 public:
-	EditChannelBox(QWidget*, ChannelData *channel);
+	EditChannelBox(QWidget*, gsl::not_null<ChannelData*> channel);
 
 protected:
 	void prepare() override;
@@ -242,6 +269,7 @@ protected:
 
 	void keyPressEvent(QKeyEvent *e) override;
 	void resizeEvent(QResizeEvent *e) override;
+	void paintEvent(QPaintEvent *e) override;
 
 private slots:
 	void peerUpdated(PeerData *peer);
@@ -255,26 +283,39 @@ private slots:
 
 private:
 	void updateMaxHeight();
+	bool canEditSignatures() const;
+	bool canEditInvites() const;
 
-	void onSaveTitleDone(const MTPUpdates &updates);
+	void onSaveTitleDone(const MTPUpdates &result);
 	void onSaveDescriptionDone(const MTPBool &result);
-	void onSaveSignDone(const MTPUpdates &updates);
-	bool onSaveFail(const RPCError &e, mtpRequestId req);
+	void onSaveSignDone(const MTPUpdates &result);
+	void onSaveInvitesDone(const MTPUpdates &result);
+	bool onSaveFail(const RPCError &error, mtpRequestId req);
 
 	void saveDescription();
 	void saveSign();
+	void saveInvites();
 
-	ChannelData *_channel;
+	gsl::not_null<ChannelData*> _channel;
 
 	object_ptr<Ui::InputField> _title;
 	object_ptr<Ui::InputArea> _description;
 	object_ptr<Ui::Checkbox> _sign;
+
+	enum class Invites {
+		Everybody,
+		OnlyAdmins,
+	};
+	std::shared_ptr<Ui::RadioenumGroup<Invites>> _inviteGroup;
+	object_ptr<Ui::Radioenum<Invites>> _inviteEverybody;
+	object_ptr<Ui::Radioenum<Invites>> _inviteOnlyAdmins;
 
 	object_ptr<Ui::LinkButton> _publicLink;
 
 	mtpRequestId _saveTitleRequestId = 0;
 	mtpRequestId _saveDescriptionRequestId = 0;
 	mtpRequestId _saveSignRequestId = 0;
+	mtpRequestId _saveInvitesRequestId = 0;
 
 	QString _sentTitle, _sentDescription;
 
@@ -287,41 +328,15 @@ public:
 protected:
 	void prepare() override;
 
-	void mouseMoveEvent(QMouseEvent *e) override;
-	void mousePressEvent(QMouseEvent *e) override;
-	void mouseReleaseEvent(QMouseEvent *e) override;
-	void paintEvent(QPaintEvent *e) override;
 	void resizeEvent(QResizeEvent *e) override;
 
 private:
-	void updateMaxHeight();
-	void updateSelected();
-
-	struct ChatRow {
-		PeerData *peer;
-		Text name, status;
-	};
-	void paintChat(Painter &p, const ChatRow &row, bool selected) const;
-
-	void getPublicDone(const MTPmessages_Chats &result);
-	bool getPublicFail(const RPCError &error);
-
-	void revokeLinkDone(const MTPBool &result);
-	bool revokeLinkFail(const RPCError &error);
-
-	PeerData *_selected = nullptr;
-	PeerData *_pressed = nullptr;
-
-	QVector<ChatRow> _rows;
-
-	int _rowsTop = 0;
-	int _rowHeight = 0;
-	int _revokeWidth = 0;
-
 	object_ptr<Ui::FlatLabel> _aboutRevoke;
 
+	class Inner;
+	QPointer<Inner> _inner;
+
+	int _innerTop = 0;
 	base::lambda<void()> _revokeCallback;
-	mtpRequestId _revokeRequestId = 0;
-	QPointer<ConfirmBox> _weakRevokeConfirmBox;
 
 };

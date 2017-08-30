@@ -23,14 +23,13 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 #include "ui/widgets/buttons.h"
 #include "styles/style_chat_helpers.h"
 #include "ui/widgets/shadow.h"
-#include "lang.h"
+#include "lang/lang_keys.h"
 
 namespace ChatHelpers {
 namespace {
 
 constexpr auto kEmojiPanelPerRow = Ui::Emoji::kPanelPerRow;
 constexpr auto kEmojiPanelRowsPerPage = Ui::Emoji::kPanelRowsPerPage;
-constexpr auto kSaveRecentEmojiTimeout = 3000;
 
 } // namespace
 
@@ -536,41 +535,7 @@ void EmojiListWidget::mouseReleaseEvent(QMouseEvent *e) {
 }
 
 void EmojiListWidget::selectEmoji(EmojiPtr emoji) {
-	auto &recent = Ui::Emoji::GetRecent();
-	auto i = recent.begin(), e = recent.end();
-	for (; i != e; ++i) {
-		if (i->first == emoji) {
-			++i->second;
-			if (i->second > 0x8000) {
-				for (auto j = recent.begin(); j != e; ++j) {
-					if (j->second > 1) {
-						j->second /= 2;
-					} else {
-						j->second = 1;
-					}
-				}
-			}
-			for (; i != recent.begin(); --i) {
-				if ((i - 1)->second > i->second) {
-					break;
-				}
-				qSwap(*i, *(i - 1));
-			}
-			break;
-		}
-	}
-	if (i == e) {
-		while (recent.size() >= kEmojiPanelPerRow * kEmojiPanelRowsPerPage) recent.pop_back();
-		recent.push_back(qMakePair(emoji, 1));
-		for (i = recent.end() - 1; i != recent.begin(); --i) {
-			if ((i - 1)->second > i->second) {
-				break;
-			}
-			qSwap(*i, *(i - 1));
-		}
-	}
-	emit saveConfigDelayed(kSaveRecentEmojiTimeout);
-
+	Ui::Emoji::AddRecent(emoji);
 	emit selected(emoji);
 }
 

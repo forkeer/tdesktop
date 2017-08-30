@@ -112,8 +112,6 @@ enum {
 	MaxUsernameLength = 32,
 	UsernameCheckTimeout = 200,
 
-	MaxChannelDescription = 255,
-	MaxGroupChannelTitle = 255,
 	MaxPhotoCaption = 200,
 
 	MaxMessageSize = 4096,
@@ -289,9 +287,6 @@ inline const char *cApiSystemVersion() {
 	return "Linux";
 #endif
 }
-inline QString cApiAppVersion() {
-	return QString::number(AppVersion);
-}
 
 extern QString gKeyFile;
 inline const QString &cDataFile() {
@@ -304,9 +299,6 @@ inline const QString &cTempDir() {
 	static const QString res = cWorkingDir() + qsl("tdata/tdld/");
 	return res;
 }
-
-static const char *DefaultCountry = "US";
-static const char *DefaultLanguage = "en";
 
 enum {
 	DialogsFirstLoad = 20, // first dialogs part size requested
@@ -336,16 +328,10 @@ enum {
 	UpdateChunk = 100 * 1024, // 100kb parts when downloading the update
 	IdleMsecs = 60 * 1000, // after 60secs without user input we think we are idle
 
-	UpdateFullChannelTimeout = 5000, // not more than once in 5 seconds
 	SendViewsTimeout = 1000, // send views each second
 
 	ForwardOnAdd = 100, // how many messages from chat history server should forward to user, that was added to this chat
 };
-
-inline const QRegularExpression &cWordSplit() {
-	static QRegularExpression regexp(qsl("[\\@\\s\\-\\+\\(\\)\\[\\]\\{\\}\\<\\>\\,\\.\\:\\!\\_\\;\\\"\\'\\x0]"));
-	return regexp;
-}
 
 inline const QRegularExpression &cRussianLetters() {
 	static QRegularExpression regexp(QString::fromUtf8("[а-яА-ЯёЁ]"));

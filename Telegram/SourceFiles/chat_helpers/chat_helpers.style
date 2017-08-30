@@ -28,6 +28,11 @@ switchPmButton: RoundButton(defaultBoxButton) {
 	height: 34px;
 	textTop: 7px;
 }
+stickersRestrictedLabel: FlatLabel(defaultFlatLabel) {
+	width: 320px;
+	align: align(center);
+	textFg: noContactsColor;
+}
 
 stickersTrendingHeader: 45px;
 stickersTrendingSkip: 15px;
@@ -96,8 +101,6 @@ stickersReorderFg: windowSubTextFg;
 stickersRowDisabledOpacity: 0.4;
 stickersRowDuration: 200;
 
-emojiIconFg: checkboxFg;
-emojiIconFgActive: windowBgActive;
 stickersSettings: icon {{ "emoji_settings", emojiIconFg }};
 stickersTrending: icon {{ "emoji_trending", emojiIconFg }};
 stickersTrendingActive: icon {{ "emoji_trending", emojiIconFgActive }};
@@ -219,3 +222,37 @@ gifsSearchCancel: contactsSearchCancel;
 gifsSearchCancelPosition: point(1px, 1px);
 gifsSearchIcon: boxFieldSearchIcon;
 gifsSearchIconPosition: point(6px, 7px);
+
+emojiSuggestionsDropdown: InnerDropdown(defaultInnerDropdown) {
+	scroll: ScrollArea(defaultSolidScroll) {
+		deltat: 0px;
+		deltab: 0px;
+		round: 1px;
+		width: 8px;
+		deltax: 3px;
+	}
+	scrollMargin: margins(0px, 5px, 0px, 5px);
+	scrollPadding: margins(0px, 3px, 0px, 3px);
+}
+emojiSuggestionsMenu: Menu(defaultMenu) {
+	itemPadding: margins(48px, 8px, 17px, 7px);
+	widthMax: 512px;
+}
+
+mentionHeight: 40px;
+mentionScroll: ScrollArea(defaultScrollArea) {
+	topsh: 0px;
+	bottomsh: 0px;
+}
+mentionPadding: margins(8px, 5px, 8px, 5px);
+mentionTop: 11px;
+mentionFont: linkFont;
+mentionNameFg: windowFg;
+mentionNameFgOver: windowFgOver;
+mentionPhotoSize: msgPhotoSize;
+mentionBg: windowBg;
+mentionBgOver: windowBgOver;
+mentionFg: windowSubTextFg;
+mentionFgOver: windowSubTextFgOver;
+mentionFgActive: windowActiveTextFg;
+mentionFgOverActive: windowActiveTextFg;

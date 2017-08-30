@@ -24,11 +24,12 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 #include "dialogs/dialogs_common.h"
 #include "ui/effects/send_action_animations.h"
 #include "base/observer.h"
+#include "base/timer.h"
 
-void historyInit();
+void HistoryInit();
 
 class HistoryItem;
-using SelectedItemSet = QMap<int32, HistoryItem*>;
+using SelectedItemSet = QMap<int, gsl::not_null<HistoryItem*>>;
 
 enum NewMessageType {
 	NewMessageUnread,
@@ -43,6 +44,7 @@ public:
 	Map map;
 
 	Histories() : _a_typings(animation(this, &Histories::step_typings)) {
+		_selfDestructTimer.setCallback([this] { checkSelfDestructItems(); });
 	}
 
 	void regSendAction(History *history, UserData *user, const MTPSendMessageAction &action, TimeId when);
@@ -95,12 +97,18 @@ public:
 	base::Observable<SendActionAnimationUpdate> &sendActionAnimationUpdated() {
 		return _sendActionAnimationUpdated;
 	}
+	void selfDestructIn(gsl::not_null<HistoryItem*> item, TimeMs delay);
 
 private:
+	void checkSelfDestructItems();
+
 	int _unreadFull = 0;
 	int _unreadMuted = 0;
 	base::Observable<SendActionAnimationUpdate> _sendActionAnimationUpdated;
 	OrderedSet<History*> _pinnedDialogs;
+
+	base::Timer _selfDestructTimer;
+	std::vector<FullMsgId> _selfDestructItems;
 
 };
 
@@ -212,10 +220,13 @@ public:
 	HistoryItem *addNewService(MsgId msgId, QDateTime date, const QString &text, MTPDmessage::Flags flags = 0, bool newMsg = true);
 	HistoryItem *addNewMessage(const MTPMessage &msg, NewMessageType type);
 	HistoryItem *addToHistory(const MTPMessage &msg);
-	HistoryItem *addNewForwarded(MsgId id, MTPDmessage::Flags flags, QDateTime date, int32 from, HistoryMessage *item);
-	HistoryItem *addNewDocument(MsgId id, MTPDmessage::Flags flags, int32 viaBotId, MsgId replyTo, QDateTime date, int32 from, DocumentData *doc, const QString &caption, const MTPReplyMarkup &markup);
-	HistoryItem *addNewPhoto(MsgId id, MTPDmessage::Flags flags, int32 viaBotId, MsgId replyTo, QDateTime date, int32 from, PhotoData *photo, const QString &caption, const MTPReplyMarkup &markup);
-	HistoryItem *addNewGame(MsgId id, MTPDmessage::Flags flags, int32 viaBotId, MsgId replyTo, QDateTime date, int32 from, GameData *game, const MTPReplyMarkup &markup);
+	HistoryItem *addNewForwarded(MsgId id, MTPDmessage::Flags flags, QDateTime date, UserId from, const QString &postAuthor, HistoryMessage *item);
+	HistoryItem *addNewDocument(MsgId id, MTPDmessage::Flags flags, UserId viaBotId, MsgId replyTo, QDateTime date, UserId from, const QString &postAuthor, DocumentData *doc, const QString &caption, const MTPReplyMarkup &markup);
+	HistoryItem *addNewPhoto(MsgId id, MTPDmessage::Flags flags, UserId viaBotId, MsgId replyTo, QDateTime date, UserId from, const QString &postAuthor, PhotoData *photo, const QString &caption, const MTPReplyMarkup &markup);
+	HistoryItem *addNewGame(MsgId id, MTPDmessage::Flags flags, UserId viaBotId, MsgId replyTo, QDateTime date, UserId from, const QString &postAuthor, GameData *game, const MTPReplyMarkup &markup);
+
+	// Used only internally and for channel admin log.
+	HistoryItem *createItem(const MTPMessage &msg, bool applyServiceAction, bool detachExistingItem);
 
 	void addOlderSlice(const QVector<MTPMessage> &slice);
 	void addNewerSlice(const QVector<MTPMessage> &slice);
@@ -382,6 +393,12 @@ public:
 		return _editDraft ? editDraft() : localDraft();
 	}
 
+	QVector<FullMsgId> forwardDraft() const {
+		return _forwardDraft;
+	}
+	SelectedItemSet validateForwardDraft();
+	void setForwardDraft(const SelectedItemSet &items);
+
 	// some fields below are a property of a currently displayed instance of this
 	// conversation history not a property of the conversation history itself
 public:
@@ -474,11 +491,10 @@ protected:
 
 	void clearBlocks(bool leaveItems);
 
-	HistoryItem *createItem(const MTPMessage &msg, bool applyServiceAction, bool detachExistingItem);
-	HistoryItem *createItemForwarded(MsgId id, MTPDmessage::Flags flags, QDateTime date, int32 from, HistoryMessage *msg);
-	HistoryItem *createItemDocument(MsgId id, MTPDmessage::Flags flags, int32 viaBotId, MsgId replyTo, QDateTime date, int32 from, DocumentData *doc, const QString &caption, const MTPReplyMarkup &markup);
-	HistoryItem *createItemPhoto(MsgId id, MTPDmessage::Flags flags, int32 viaBotId, MsgId replyTo, QDateTime date, int32 from, PhotoData *photo, const QString &caption, const MTPReplyMarkup &markup);
-	HistoryItem *createItemGame(MsgId id, MTPDmessage::Flags flags, int32 viaBotId, MsgId replyTo, QDateTime date, int32 from, GameData *game, const MTPReplyMarkup &markup);
+	HistoryItem *createItemForwarded(MsgId id, MTPDmessage::Flags flags, QDateTime date, UserId from, const QString &postAuthor, HistoryMessage *msg);
+	HistoryItem *createItemDocument(MsgId id, MTPDmessage::Flags flags, UserId viaBotId, MsgId replyTo, QDateTime date, UserId from, const QString &postAuthor, DocumentData *doc, const QString &caption, const MTPReplyMarkup &markup);
+	HistoryItem *createItemPhoto(MsgId id, MTPDmessage::Flags flags, UserId viaBotId, MsgId replyTo, QDateTime date, UserId from, const QString &postAuthor, PhotoData *photo, const QString &caption, const MTPReplyMarkup &markup);
+	HistoryItem *createItemGame(MsgId id, MTPDmessage::Flags flags, UserId viaBotId, MsgId replyTo, QDateTime date, UserId from, const QString &postAuthor, GameData *game, const MTPReplyMarkup &markup);
 
 	HistoryItem *addNewItem(HistoryItem *adding, bool newMsg);
 	HistoryItem *addNewInTheMiddle(HistoryItem *newItem, int32 blockIndex, int32 itemIndex);
@@ -558,6 +574,7 @@ private:
 
 	std::unique_ptr<Data::Draft> _localDraft, _cloudDraft;
 	std::unique_ptr<Data::Draft> _editDraft;
+	QVector<FullMsgId> _forwardDraft;
 
 	using TypingUsers = QMap<UserData*, TimeMs>;
 	TypingUsers _typing;
