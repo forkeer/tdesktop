@@ -1,25 +1,14 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "boxes/connection_box.h"
 
+#include "data/data_photo.h"
+#include "data/data_document.h"
 #include "boxes/confirm_box.h"
 #include "lang/lang_keys.h"
 #include "storage/localstorage.h"
@@ -51,7 +40,7 @@ void ConnectionBox::ShowApplyProxyConfirmation(const QMap<QString, QString> &fie
 			reinitLocationManager();
 			reinitWebLoadManager();
 			if (*weakBox) (*weakBox)->closeBox();
-		}), KeepOtherLayers);
+		}), LayerOption::KeepOther);
 		*weakBox = box;
 	}
 }
@@ -167,7 +156,7 @@ void ConnectionBox::typeChanged(DBIConnectionType type) {
 		}
 		if ((type == dbictHttpProxy) && !_portInput->getLastText().toInt()) {
 			_portInput->setText(qsl("80"));
-			_portInput->finishAnimations();
+			_portInput->finishAnimating();
 		}
 	}
 	update();
@@ -323,7 +312,7 @@ void AutoDownloadBox::onSave() {
 		cSetAutoDownloadAudio(autoDownloadAudio);
 		if (enabledPrivate || enabledGroups) {
 			for (auto document : App::documentsData()) {
-				if (document->voice()) {
+				if (document->isVoiceMessage()) {
 					document->automaticLoadSettingsChanged();
 				}
 			}

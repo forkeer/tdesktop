@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
@@ -121,11 +108,11 @@ class Mixer : public QObject, private base::Subscriber {
 public:
 	Mixer();
 
-	void play(const AudioMsgId &audio, int64 position = 0);
-	void play(const AudioMsgId &audio, std::unique_ptr<VideoSoundData> videoData, int64 position = 0);
+	void play(const AudioMsgId &audio, TimeMs positionMs = 0);
+	void play(const AudioMsgId &audio, std::unique_ptr<VideoSoundData> videoData, TimeMs positionMs = 0);
 	void pause(const AudioMsgId &audio, bool fast = false);
 	void resume(const AudioMsgId &audio, bool fast = false);
-	void seek(AudioMsgId::Type type, int64 position); // type == AudioMsgId::Type::Song
+	void seek(AudioMsgId::Type type, TimeMs positionMs); // type == AudioMsgId::Type::Song
 	void stop(const AudioMsgId &audio);
 	void stop(const AudioMsgId &audio, State state);
 
@@ -165,7 +152,7 @@ private slots:
 signals:
 	void updated(const AudioMsgId &audio);
 	void stoppedOnError(const AudioMsgId &audio);
-	void loaderOnStart(const AudioMsgId &audio, qint64 position);
+	void loaderOnStart(const AudioMsgId &audio, qint64 positionMs);
 	void loaderOnCancel(const AudioMsgId &audio);
 
 	void faderOnTimer();
@@ -310,7 +297,7 @@ private:
 
 };
 
-FileLoadTask::Song PrepareForSending(const QString &fname, const QByteArray &data);
+FileMediaInformation::Song PrepareForSending(const QString &fname, const QByteArray &data);
 
 namespace internal {
 

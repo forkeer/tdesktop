@@ -1,28 +1,16 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "calls/calls_top_bar.h"
 
 #include "styles/style_calls.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/labels.h"
+#include "ui/wrap/padding_wrap.h"
 #include "lang/lang_keys.h"
 #include "calls/calls_call.h"
 #include "calls/calls_instance.h"
@@ -38,7 +26,7 @@ constexpr auto kUpdateDebugTimeoutMs = TimeMs(500);
 
 class DebugInfoBox : public BoxContent {
 public:
-	DebugInfoBox(QWidget*, base::weak_unique_ptr<Call> call);
+	DebugInfoBox(QWidget*, base::weak_ptr<Call> call);
 
 protected:
 	void prepare() override;
@@ -46,20 +34,25 @@ protected:
 private:
 	void updateText();
 
-	base::weak_unique_ptr<Call> _call;
+	base::weak_ptr<Call> _call;
 	QPointer<Ui::FlatLabel> _text;
 	base::Timer _updateTextTimer;
 
 };
 
-DebugInfoBox::DebugInfoBox(QWidget*, base::weak_unique_ptr<Call> call) : _call(call) {
+DebugInfoBox::DebugInfoBox(QWidget*, base::weak_ptr<Call> call)
+: _call(call) {
 }
 
 void DebugInfoBox::prepare() {
 	setTitle([] { return QString("Call Debug"); });
 
 	addButton(langFactory(lng_close), [this] { closeBox(); });
-	_text = setInnerWidget(object_ptr<Ui::FlatLabel>(this, st::callDebugLabel));
+	_text = setInnerWidget(
+		object_ptr<Ui::PaddingWrap<Ui::FlatLabel>>(
+			this,
+			object_ptr<Ui::FlatLabel>(this, st::callDebugLabel),
+			st::callDebugPadding))->entity();
 	_text->setSelectable(true);
 	updateText();
 	_updateTextTimer.setCallback([this] { updateText(); });
@@ -75,7 +68,10 @@ void DebugInfoBox::updateText() {
 
 } // namespace
 
-TopBar::TopBar(QWidget *parent, const base::weak_unique_ptr<Call> &call) : TWidget(parent)
+TopBar::TopBar(
+	QWidget *parent,
+	const base::weak_ptr<Call> &call)
+: RpWidget(parent)
 , _call(call)
 , _durationLabel(this, st::callBarLabel)
 , _fullInfoLabel(this, st::callBarInfoLabel)

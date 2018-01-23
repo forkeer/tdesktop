@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "boxes/confirm_box.h"
 
@@ -30,6 +17,7 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/labels.h"
 #include "ui/toast/toast.h"
+#include "ui/empty_userpic.h"
 #include "core/click_handler_types.h"
 #include "storage/localstorage.h"
 #include "auth_session.h"
@@ -326,7 +314,7 @@ void ConvertToSupergroupBox::convertDone(const MTPUpdates &updates) {
 	auto handleChats = [](auto &mtpChats) {
 		for_const (auto &mtpChat, mtpChats.v) {
 			if (mtpChat.type() == mtpc_channel) {
-				auto channel = App::channel(mtpChat.c_channel().vid.v);
+				const auto channel = App::channel(mtpChat.c_channel().vid.v);
 				Ui::showPeerHistory(channel, ShowAtUnreadMsgId);
 				Auth().api().requestParticipantsCountDelayed(channel);
 			}
@@ -368,21 +356,30 @@ void ConvertToSupergroupBox::paintEvent(QPaintEvent *e) {
 PinMessageBox::PinMessageBox(QWidget*, ChannelData *channel, MsgId msgId)
 : _channel(channel)
 , _msgId(msgId)
-, _text(this, lang(lng_pinned_pin_sure), Ui::FlatLabel::InitType::Simple, st::boxLabel)
-, _notify(this, lang(lng_pinned_notify), true, st::defaultBoxCheckbox) {
+, _text(this, lang(lng_pinned_pin_sure), Ui::FlatLabel::InitType::Simple, st::boxLabel) {
 }
 
 void PinMessageBox::prepare() {
 	addButton(langFactory(lng_pinned_pin), [this] { pinMessage(); });
 	addButton(langFactory(lng_cancel), [this] { closeBox(); });
 
-	setDimensions(st::boxWidth, st::boxPadding.top() + _text->height() + st::boxMediumSkip + _notify->heightNoMargins() + st::boxPadding.bottom());
+	if (_channel->isMegagroup()) {
+		_notify.create(this, lang(lng_pinned_notify), true, st::defaultBoxCheckbox);
+	}
+
+	auto height = st::boxPadding.top() + _text->height() + st::boxPadding.bottom();
+	if (_notify) {
+		height += st::boxMediumSkip + _notify->heightNoMargins();
+	}
+	setDimensions(st::boxWidth, height);
 }
 
 void PinMessageBox::resizeEvent(QResizeEvent *e) {
 	BoxContent::resizeEvent(e);
 	_text->moveToLeft(st::boxPadding.left(), st::boxPadding.top());
-	_notify->moveToLeft(st::boxPadding.left(), _text->y() + _text->height() + st::boxMediumSkip);
+	if (_notify) {
+		_notify->moveToLeft(st::boxPadding.left(), _text->y() + _text->height() + st::boxMediumSkip);
+	}
 }
 
 void PinMessageBox::keyPressEvent(QKeyEvent *e) {
@@ -397,10 +394,16 @@ void PinMessageBox::pinMessage() {
 	if (_requestId) return;
 
 	auto flags = MTPchannels_UpdatePinnedMessage::Flags(0);
-	if (!_notify->checked()) {
+	if (_notify && !_notify->checked()) {
 		flags |= MTPchannels_UpdatePinnedMessage::Flag::f_silent;
 	}
-	_requestId = MTP::send(MTPchannels_UpdatePinnedMessage(MTP_flags(flags), _channel->inputChannel, MTP_int(_msgId)), rpcDone(&PinMessageBox::pinDone), rpcFail(&PinMessageBox::pinFail));
+	_requestId = MTP::send(
+		MTPchannels_UpdatePinnedMessage(
+			MTP_flags(flags),
+			_channel->inputChannel,
+			MTP_int(_msgId)),
+		rpcDone(&PinMessageBox::pinDone),
+		rpcFail(&PinMessageBox::pinFail));
 }
 
 void PinMessageBox::pinDone(const MTPUpdates &updates) {
@@ -416,8 +419,12 @@ bool PinMessageBox::pinFail(const RPCError &error) {
 	return true;
 }
 
-DeleteMessagesBox::DeleteMessagesBox(QWidget*, HistoryItem *item, bool suggestModerateActions) : _singleItem(true) {
-	_ids.push_back(item->fullId());
+DeleteMessagesBox::DeleteMessagesBox(
+	QWidget*,
+	not_null<HistoryItem*> item,
+	bool suggestModerateActions)
+: _ids(1, item->fullId())
+, _singleItem(true) {
 	if (suggestModerateActions) {
 		_moderateBan = item->suggestBanReport();
 		_moderateDeleteAll = item->suggestDeleteAllReport();
@@ -428,13 +435,11 @@ DeleteMessagesBox::DeleteMessagesBox(QWidget*, HistoryItem *item, bool suggestMo
 	}
 }
 
-DeleteMessagesBox::DeleteMessagesBox(QWidget*, const SelectedItemSet &selected) {
-	auto count = selected.size();
-	Assert(count > 0);
-	_ids.reserve(count);
-	for_const (auto item, selected) {
-		_ids.push_back(item->fullId());
-	}
+DeleteMessagesBox::DeleteMessagesBox(
+	QWidget*,
+	MessageIdsList &&selected)
+: _ids(std::move(selected)) {
+	Expects(!_ids.empty());
 }
 
 void DeleteMessagesBox::prepare() {
@@ -456,8 +461,8 @@ void DeleteMessagesBox::prepare() {
 		auto deleteForUser = (UserData*)nullptr;
 		auto peer = (PeerData*)nullptr;
 		auto forEveryoneText = lang(lng_delete_for_everyone_check);
-		for_const (auto fullId, _ids) {
-			if (auto item = App::histItemById(fullId)) {
+		for (const auto fullId : std::as_const(_ids)) {
+			if (const auto item = App::histItemById(fullId)) {
 				peer = item->history()->peer;
 				if (!item->canDeleteForEveryone(now)) {
 					canDeleteAllForEveryone = false;
@@ -465,7 +470,9 @@ void DeleteMessagesBox::prepare() {
 				} else if (auto user = item->history()->peer->asUser()) {
 					if (!deleteForUser || deleteForUser == user) {
 						deleteForUser = user;
-						forEveryoneText = lng_delete_for_other_check(lt_user, user->firstName);
+						forEveryoneText = lng_delete_for_other_check(
+							lt_user,
+							user->firstName);
 					} else {
 						forEveryoneText = lang(lng_delete_for_everyone_check);
 					}
@@ -474,7 +481,7 @@ void DeleteMessagesBox::prepare() {
 				canDeleteAllForEveryone = false;
 			}
 		}
-		auto count = qMax(1, _ids.size());
+		auto count = int(_ids.size());
 		if (canDeleteAllForEveryone) {
 			_forEveryone.create(this, forEveryoneText, false, st::defaultBoxCheckbox);
 		} else if (peer && peer->isChannel()) {
@@ -510,6 +517,7 @@ void DeleteMessagesBox::prepare() {
 
 void DeleteMessagesBox::resizeEvent(QResizeEvent *e) {
 	BoxContent::resizeEvent(e);
+
 	_text->moveToLeft(st::boxPadding.left(), st::boxPadding.top());
 	if (_moderateFrom) {
 		auto top = _text->bottomNoMargins() + st::boxMediumSkip;
@@ -523,6 +531,8 @@ void DeleteMessagesBox::resizeEvent(QResizeEvent *e) {
 			_deleteAll->moveToLeft(st::boxPadding.left(), top);
 		}
 	} else if (_forEveryone) {
+		auto availableWidth = width() - 2 * st::boxPadding.left();
+		_forEveryone->resizeToNaturalWidth(availableWidth);
 		_forEveryone->moveToLeft(st::boxPadding.left(), _text->bottomNoMargins() + st::boxMediumSkip);
 	}
 }
@@ -542,13 +552,22 @@ void DeleteMessagesBox::deleteAndClear() {
 
 	if (_moderateFrom) {
 		if (_banUser && _banUser->checked()) {
-			Auth().api().kickParticipant(_moderateInChannel, _moderateFrom, MTP_channelBannedRights(MTP_flags(0), MTP_int(0)));
+			Auth().api().kickParticipant(
+				_moderateInChannel,
+				_moderateFrom,
+				MTP_channelBannedRights(MTP_flags(0), MTP_int(0)));
 		}
 		if (_reportSpam->checked()) {
-			MTP::send(MTPchannels_ReportSpam(_moderateInChannel->inputChannel, _moderateFrom->inputUser, MTP_vector<MTPint>(1, MTP_int(_ids[0].msg))));
+			MTP::send(
+				MTPchannels_ReportSpam(
+					_moderateInChannel->inputChannel,
+					_moderateFrom->inputUser,
+					MTP_vector<MTPint>(1, MTP_int(_ids[0].msg))));
 		}
 		if (_deleteAll && _deleteAll->checked()) {
-			App::main()->deleteAllFromUser(_moderateInChannel, _moderateFrom);
+			App::main()->deleteAllFromUser(
+				_moderateInChannel,
+				_moderateFrom);
 		}
 	}
 
@@ -596,8 +615,12 @@ ConfirmInviteBox::ConfirmInviteBox(QWidget*, const QString &title, bool isChanne
 	}
 	_status->setText(status);
 	if (photo.type() == mtpc_chatPhoto) {
-		auto &d = photo.c_chatPhoto();
-		auto location = App::imageLocation(160, 160, d.vphoto_small);
+		const auto &data = photo.c_chatPhoto();
+		const auto size = 160;
+		const auto location = StorageImageLocation::FromMTP(
+			size,
+			size,
+			data.vphoto_small);
 		if (!location.isNull()) {
 			_photo = ImagePtr(location);
 			if (!_photo->loaded()) {
@@ -607,7 +630,9 @@ ConfirmInviteBox::ConfirmInviteBox(QWidget*, const QString &title, bool isChanne
 		}
 	}
 	if (!_photo) {
-		_photoEmpty.set(0, title);
+		_photoEmpty = std::make_unique<Ui::EmptyUserpic>(
+			Data::PeerUserpicColor(0),
+			title);
 	}
 }
 
@@ -657,7 +682,7 @@ void ConfirmInviteBox::paintEvent(QPaintEvent *e) {
 	if (_photo) {
 		p.drawPixmap((width() - st::confirmInvitePhotoSize) / 2, st::confirmInvitePhotoTop, _photo->pixCircled(st::confirmInvitePhotoSize, st::confirmInvitePhotoSize));
 	} else {
-		_photoEmpty.paint(p, (width() - st::confirmInvitePhotoSize) / 2, st::confirmInvitePhotoTop, width(), st::confirmInvitePhotoSize);
+		_photoEmpty->paint(p, (width() - st::confirmInvitePhotoSize) / 2, st::confirmInvitePhotoTop, width(), st::confirmInvitePhotoSize);
 	}
 
 	int sumWidth = _participants.size() * _userWidth;
@@ -667,3 +692,5 @@ void ConfirmInviteBox::paintEvent(QPaintEvent *e) {
 		left += _userWidth;
 	}
 }
+
+ConfirmInviteBox::~ConfirmInviteBox() = default;

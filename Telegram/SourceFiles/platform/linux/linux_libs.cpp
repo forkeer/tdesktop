@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "platform/linux/linux_libs.h"
 
@@ -44,6 +31,7 @@ bool loadLibrary(QLibrary &lib, const char *name, int version) {
     return false;
 }
 
+#ifndef TDESKTOP_DISABLE_GTK_INTEGRATION
 bool setupGtkBase(QLibrary &lib_gtk) {
 	if (!load(lib_gtk, "gtk_init_check", gtk_init_check)) return false;
 	if (!load(lib_gtk, "gtk_menu_new", gtk_menu_new)) return false;
@@ -142,9 +130,11 @@ bool setupAppIndicator(QLibrary &lib_indicator) {
 	DEBUG_LOG(("Library appindicator functions loaded!"));
 	return true;
 }
+#endif // !TDESKTOP_DISABLE_GTK_INTEGRATION
 
 } // namespace
 
+#ifndef TDESKTOP_DISABLE_GTK_INTEGRATION
 f_gtk_init_check gtk_init_check = nullptr;
 f_gtk_menu_new gtk_menu_new = nullptr;
 f_gtk_menu_get_type gtk_menu_get_type = nullptr;
@@ -235,9 +225,11 @@ f_unity_launcher_entry_set_count unity_launcher_entry_set_count = nullptr;
 f_unity_launcher_entry_set_count_visible unity_launcher_entry_set_count_visible = nullptr;
 f_unity_launcher_entry_get_for_desktop_id unity_launcher_entry_get_for_desktop_id = nullptr;
 #endif // !TDESKTOP_DISABLE_UNITY_INTEGRATION
+#endif // !TDESKTOP_DISABLE_GTK_INTEGRATION
 
 void start() {
 	DEBUG_LOG(("Loading libraries"));
+#ifndef TDESKTOP_DISABLE_GTK_INTEGRATION
 
 	bool gtkLoaded = false;
 	bool indicatorLoaded = false;
@@ -310,6 +302,7 @@ void start() {
 	if (gtkLoaded) {
 		startLibNotify();
 	}
+#endif // !TDESKTOP_DISABLE_GTK_INTEGRATION
 }
 
 } // namespace Libs

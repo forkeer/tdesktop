@@ -1,3 +1,75 @@
+1.2.8 alpha (03.01.18)
+
+- Bug fixes and other minor improvements.
+
+1.2.7 alpha (31.12.17)
+
+- Use fast reply button in group chats.
+- Select a message you want to reply to by pressing Ctrl+Up and Ctrl+Down.
+
+1.2.6 (30.12.17)
+
+- Grouped Photos. Group media into an album when sharing multiple photos and videos. Choose the exact order of media you send.
+
+1.2.5 alpha (29.12.17)
+
+- When viewing a photo from an album, you'll see other pictures from the same group as thumbnails in the lower part of the screen.
+- When composing an album paste additional media from the clipboard.
+- Bug fixes and other minor improvements.
+
+1.2.4 alpha (26.12.17)
+
+- Group media into an album when sharing multiple photos and videos.
+- Bug fixes and other minor improvements.
+
+1.2.3 alpha (17.12.17)
+
+- Several crash fixes.
+
+1.2.2 alpha (16.12.17)
+
+- Grouped photos and videos are displayed as albums.
+
+1.2.1 (12.12.17)
+
+- Bug fixes and other minor improvements.
+
+1.2.0 (10.12.17)
+
+- Radically improved navigation. New side panel on the right with quick access to shared media and group members.
+- Saved Messages. Bookmark messages by forwarding them to "Saved Messages". Access them from the Chats list or from the side menu.
+- Pinned Messages. If you are a channel admin, pin messages to focus your subscribers' attention on important announcements.
+- Easily recognize messages from group admins by the new 'admin' badge.
+- Also supported clearing history in supergroups and added a host of minor improvements.
+
+1.1.29 alpha (09.12.17)
+
+- Bug fixes and other minor improvements.
+
+1.1.28 alpha (09.12.17)
+
+- Bug fixes and other minor improvements.
+
+1.1.27 alpha (06.12.17)
+
+- Bookmark messages by forwarding them to "Saved Messages". Access them from the Chats list or from the side menu.
+
+1.1.26 alpha (02.12.17)
+
+- Admin badges in supergroup messages.
+- Fix crashing on launch in OS X 10.6.
+- Bug fixes and other minor improvements.
+
+1.1.25 alpha (30.11.17)
+
+- Bug fixes and other minor improvements.
+
+1.1.24 alpha (29.11.17)
+
+- Radically improved navigation. New side panel on the right with quick access to shared media and group members.
+- Pinned Messages. If you are a channel admin, pin messages to focus your subscribers' attention on important announcements.
+- Also supported clearing history in supergroups and added a host of minor improvements.
+
 1.1.23 (05.09.17)
 
 - See the message author photo and name while searching specific chat messages.

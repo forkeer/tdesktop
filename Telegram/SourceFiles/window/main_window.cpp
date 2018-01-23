@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "window/main_window.h"
 
@@ -99,7 +86,7 @@ bool MainWindow::hideNoQuit() {
 }
 
 void MainWindow::clearWidgets() {
-	Ui::hideLayer(true);
+	Ui::hideLayer(anim::type::instant);
 	clearWidgetsHook();
 	updateGlobalMenu();
 }
@@ -135,6 +122,9 @@ void MainWindow::updateWindowIcon() {
 }
 
 void MainWindow::init() {
+	Expects(!windowHandle());
+	createWinId();
+
 	initHook();
 	updateWindowIcon();
 
@@ -170,6 +160,7 @@ void MainWindow::handleActiveChanged() {
 	}
 	App::CallDelayed(1, this, [this] {
 		updateTrayMenu();
+		handleActiveChangedHook();
 	});
 }
 
@@ -255,6 +246,14 @@ void MainWindow::setPositionInited() {
 
 void MainWindow::resizeEvent(QResizeEvent *e) {
 	updateControlsGeometry();
+}
+
+rpl::producer<> MainWindow::leaveEvents() const {
+	return _leaveEvents.events();
+}
+
+void MainWindow::leaveEvent(QEvent *e) {
+	_leaveEvents.fire({});
 }
 
 void MainWindow::updateControlsGeometry() {
@@ -365,20 +364,35 @@ void MainWindow::showRightColumn(object_ptr<TWidget> widget) {
 	}
 }
 
-bool MainWindow::canExtendWidthBy(int addToWidth) {
+int MainWindow::maximalExtendBy() const {
 	auto desktop = QDesktopWidget().availableGeometry(this);
-	return (width() + addToWidth) <= desktop.width();
+	return std::max(desktop.width() - geometry().width(), 0);
 }
 
-void MainWindow::tryToExtendWidthBy(int addToWidth) {
+bool MainWindow::canExtendNoMove(int extendBy) const {
 	auto desktop = QDesktopWidget().availableGeometry(this);
-	auto newWidth = qMin(width() + addToWidth, desktop.width());
-	auto newLeft = qMin(x(), desktop.x() + desktop.width() - newWidth);
-	if (x() != newLeft || width() != newWidth) {
-		setGeometry(newLeft, y(), newWidth, height());
+	auto inner = geometry();
+	auto innerRight = (inner.x() + inner.width() + extendBy);
+	auto desktopRight = (desktop.x() + desktop.width());
+	return innerRight <= desktopRight;
+}
+
+int MainWindow::tryToExtendWidthBy(int addToWidth) {
+	auto desktop = QDesktopWidget().availableGeometry(this);
+	auto inner = geometry();
+	accumulate_min(
+		addToWidth,
+		std::max(desktop.width() - inner.width(), 0));
+	auto newWidth = inner.width() + addToWidth;
+	auto newLeft = std::min(
+		inner.x(),
+		desktop.x() + desktop.width() - newWidth);
+	if (inner.x() != newLeft || inner.width() != newWidth) {
+		setGeometry(newLeft, inner.y(), newWidth, inner.height());
 	} else {
 		updateControlsGeometry();
 	}
+	return addToWidth;
 }
 
 void MainWindow::launchDrag(std::unique_ptr<QMimeData> data) {

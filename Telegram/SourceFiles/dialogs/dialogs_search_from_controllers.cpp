@@ -1,39 +1,41 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "dialogs/dialogs_search_from_controllers.h"
 
 #include "lang/lang_keys.h"
+#include "data/data_peer_values.h"
 #include "observer_peer.h"
 #include "auth_session.h"
 #include "apiwrap.h"
 
 namespace Dialogs {
 
-void ShowSearchFromBox(PeerData *peer, base::lambda<void(not_null<UserData*>)> callback, base::lambda<void()> closedCallback) {
-	auto createController = [peer, callback = std::move(callback)]() -> std::unique_ptr<PeerListController> {
+void ShowSearchFromBox(
+		not_null<Window::Navigation*> navigation,
+		not_null<PeerData*> peer,
+		base::lambda<void(not_null<UserData*>)> callback,
+		base::lambda<void()> closedCallback) {
+	auto createController = [
+		navigation,
+		peer,
+		callback = std::move(callback)
+	]() -> std::unique_ptr<PeerListController> {
 		if (peer) {
 			if (auto chat = peer->asChat()) {
-				return std::make_unique<Dialogs::ChatSearchFromController>(chat, std::move(callback));
+				return std::make_unique<Dialogs::ChatSearchFromController>(
+					navigation,
+					chat,
+					std::move(callback));
 			} else if (auto group = peer->asMegagroup()) {
-				return std::make_unique<Dialogs::ChannelSearchFromController>(group, std::move(callback));
+				return std::make_unique<Dialogs::ChannelSearchFromController>(
+					navigation,
+					group,
+					std::move(callback));
 			}
 		}
 		return nullptr;
@@ -42,12 +44,16 @@ void ShowSearchFromBox(PeerData *peer, base::lambda<void(not_null<UserData*>)> c
 		auto subscription = std::make_shared<base::Subscription>();
 		auto box = Ui::show(Box<PeerListBox>(std::move(controller), [subscription](not_null<PeerListBox*> box) {
 			box->addButton(langFactory(lng_cancel), [box, subscription] { box->closeBox(); });
-		}), KeepOtherLayers);
+		}), LayerOption::KeepOther);
 		*subscription = box->boxClosing.add_subscription(std::move(closedCallback));
 	}
 }
 
-ChatSearchFromController::ChatSearchFromController(not_null<ChatData*> chat, base::lambda<void(not_null<UserData*>)> callback) : PeerListController()
+ChatSearchFromController::ChatSearchFromController(
+	not_null<Window::Navigation*> navigation,
+	not_null<ChatData*> chat,
+	base::lambda<void(not_null<UserData*>)> callback)
+: PeerListController()
 , _chat(chat)
 , _callback(std::move(callback)) {
 }
@@ -76,20 +82,22 @@ void ChatSearchFromController::rebuildRows() {
 	auto wasEmpty = !delegate()->peerListFullRowsCount();
 
 	auto now = unixtime();
-	QMultiMap<int32, UserData*> ordered;
+	const auto byOnline = [&](not_null<UserData*> user) {
+		return Data::SortByOnlineValue(user, now);
+	};
+	auto ordered = QMultiMap<TimeId, not_null<UserData*>>();
 	if (_chat->noParticipantInfo()) {
 		Auth().api().requestFullPeer(_chat);
-	} else if (!_chat->participants.isEmpty()) {
-		for (auto i = _chat->participants.cbegin(), e = _chat->participants.cend(); i != e; ++i) {
-			auto user = i.key();
-			ordered.insertMulti(App::onlineForSort(user, now), user);
+	} else if (!_chat->participants.empty()) {
+		for (const auto [user, version] : _chat->participants) {
+			ordered.insertMulti(byOnline(user), user);
 		}
 	}
 	for_const (auto user, _chat->lastAuthors) {
 		if (user->isInaccessible()) continue;
 		appendRow(user);
 		if (!ordered.isEmpty()) {
-			ordered.remove(App::onlineForSort(user, now), user);
+			ordered.remove(byOnline(user), user);
 		}
 	}
 	if (!ordered.isEmpty()) {
@@ -115,7 +123,14 @@ void ChatSearchFromController::appendRow(not_null<UserData*> user) {
 	}
 }
 
-ChannelSearchFromController::ChannelSearchFromController(not_null<ChannelData*> channel, base::lambda<void(not_null<UserData*>)> callback) : ParticipantsBoxController(channel, ParticipantsBoxController::Role::Members)
+ChannelSearchFromController::ChannelSearchFromController(
+	not_null<Window::Navigation*> navigation,
+	not_null<ChannelData*> channel,
+	base::lambda<void(not_null<UserData*>)> callback)
+: ParticipantsBoxController(
+	navigation,
+	channel,
+	ParticipantsBoxController::Role::Members)
 , _callback(std::move(callback)) {
 }
 

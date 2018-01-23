@@ -1,21 +1,8 @@
 # This file is part of Telegram Desktop,
-# the official desktop version of Telegram messaging app, see https://telegram.org
+# the official desktop application for the Telegram messaging service.
 #
-# Telegram Desktop is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# It is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
-#
-# In addition, as a special exception, the copyright holders give permission
-# to link the code of portions of this program with the OpenSSL library.
-#
-# Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-# Copyright (c) 2014 John Preston, https://desktop.telegram.org
+# For license and copyright information please follow this link:
+# https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 {
   'variables': {
@@ -144,7 +131,7 @@
     'linux_path_xkbcommon%': '/usr/local',
     'linux_lib_ssl%': '/usr/local/ssl/lib/libssl.a',
     'linux_lib_crypto%': '/usr/local/ssl/lib/libcrypto.a',
-    'linux_lib_icu%': '/usr/lib/libicutu.a /usr/lib/libicui18n.a /usr/lib/libicuuc.a /usr/lib/libicudata.a',
+    'linux_lib_icu%': 'libicutu.a libicui18n.a libicuuc.a libicudata.a',
   },
 
   'configurations': {
@@ -196,6 +183,7 @@
     '<(qt_loc)/include',
     '<(qt_loc)/include/QtCore',
     '<(qt_loc)/include/QtGui',
+    '<(qt_loc)/include/QtDBus',
     '<(qt_loc)/include/QtCore/<(qt_version)',
     '<(qt_loc)/include/QtGui/<(qt_version)',
     '<(qt_loc)/include/QtCore/<(qt_version)/QtCore',
@@ -216,10 +204,14 @@
   ],
   'conditions': [
     [ 'build_linux', {
+      'dependencies': [
+        '<(DEPTH)/linux_glibc_wraps.gyp:linux_glibc_wraps',
+      ],
       'library_dirs': [
         '<(qt_loc)/plugins/platforminputcontexts',
       ],
       'libraries': [
+        '<(PRODUCT_DIR)/obj.target/liblinux_glibc_wraps.a',
         '<(linux_path_xkbcommon)/lib/libxkbcommon.a',
         '<@(qt_libs_release)',
         '<(linux_lib_ssl)',
@@ -240,7 +232,6 @@
       'ldflags': [
         '-static-libstdc++',
         '-pthread',
-        '-g',
         '-rdynamic',
       ],
     }],

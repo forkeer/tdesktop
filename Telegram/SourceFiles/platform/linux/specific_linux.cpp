@@ -1,19 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "platform/linux/specific_linux.h"
 
@@ -25,6 +15,7 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 #include "platform/linux/file_utilities_linux.h"
 #include "platform/platform_notifications_manager.h"
 #include "storage/localstorage.h"
+#include "core/crash_reports.h"
 
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -457,7 +448,7 @@ void psRegisterCustomScheme() {
 			s << "[Desktop Entry]\n";
 			s << "Version=1.0\n";
 			s << "Name=Telegram Desktop\n";
-			s << "Comment=Official desktop version of Telegram messaging app\n";
+			s << "Comment=Official desktop application for the Telegram messaging service\n";
 			s << "TryExec=" << EscapeShell(QFile::encodeName(cExeDir() + cExeName())) << "\n";
 			s << "Exec=" << EscapeShell(QFile::encodeName(cExeDir() + cExeName())) << " -- %u\n";
 			s << "Icon=telegram\n";
@@ -523,98 +514,6 @@ void psRegisterCustomScheme() {
 
 void psNewVersion() {
 	psRegisterCustomScheme();
-}
-
-bool _execUpdater(bool update = true, const QString &crashreport = QString()) {
-	if (cExeName().isEmpty()) {
-		return false;
-	}
-	static const int MaxLen = 65536, MaxArgsCount = 128;
-
-	char path[MaxLen] = {0};
-	QByteArray data(QFile::encodeName(cExeDir() + (update ? "Updater" : cExeName())));
-	memcpy(path, data.constData(), data.size());
-
-	char *args[MaxArgsCount] = { 0 };
-	char p_noupdate[] = "-noupdate";
-	char p_autostart[] = "-autostart";
-	char p_debug[] = "-debug";
-	char p_tosettings[] = "-tosettings";
-	char p_key[] = "-key";
-	char p_datafile[MaxLen] = { 0 };
-	char p_path[] = "-workpath";
-	char p_pathbuf[MaxLen] = { 0 };
-	char p_startintray[] = "-startintray";
-	char p_testmode[] = "-testmode";
-	char p_crashreport[] = "-crashreport";
-	char p_crashreportbuf[MaxLen] = { 0 };
-	char p_exe[] = "-exename";
-	char p_exebuf[MaxLen] = { 0 };
-	char p_exepath[] = "-exepath";
-	char p_exepathbuf[MaxLen] = { 0 };
-	int argIndex = 0;
-	args[argIndex++] = path;
-	if (!update) {
-		args[argIndex++] = p_noupdate;
-		args[argIndex++] = p_tosettings;
-	}
-	if (cLaunchMode() == LaunchModeAutoStart) args[argIndex++] = p_autostart;
-	if (cDebug()) args[argIndex++] = p_debug;
-	if (cStartInTray()) args[argIndex++] = p_startintray;
-	if (cTestMode()) args[argIndex++] = p_testmode;
-	if (cDataFile() != qsl("data")) {
-		QByteArray dataf = QFile::encodeName(cDataFile());
-		if (dataf.size() < MaxLen) {
-			memcpy(p_datafile, dataf.constData(), dataf.size());
-			args[argIndex++] = p_key;
-			args[argIndex++] = p_datafile;
-		}
-	}
-	QByteArray pathf = QFile::encodeName(cWorkingDir());
-	if (pathf.size() < MaxLen) {
-		memcpy(p_pathbuf, pathf.constData(), pathf.size());
-		args[argIndex++] = p_path;
-		args[argIndex++] = p_pathbuf;
-	}
-	if (!crashreport.isEmpty()) {
-		QByteArray crashreportf = QFile::encodeName(crashreport);
-		if (crashreportf.size() < MaxLen) {
-			memcpy(p_crashreportbuf, crashreportf.constData(), crashreportf.size());
-			args[argIndex++] = p_crashreport;
-			args[argIndex++] = p_crashreportbuf;
-		}
-	}
-	QByteArray exef = QFile::encodeName(cExeName());
-	if (exef.size() > 0 && exef.size() < MaxLen) {
-		memcpy(p_exebuf, exef.constData(), exef.size());
-		args[argIndex++] = p_exe;
-		args[argIndex++] = p_exebuf;
-	}
-	QByteArray exepathf = QFile::encodeName(cExeDir());
-	if (exepathf.size() > 0 && exepathf.size() < MaxLen) {
-		memcpy(p_exepathbuf, exepathf.constData(), exepathf.size());
-		args[argIndex++] = p_exepath;
-		args[argIndex++] = p_exepathbuf;
-	}
-
-	Logs::closeMain();
-	SignalHandlers::finish();
-	pid_t pid = fork();
-	switch (pid) {
-	case -1: return false;
-	case 0: execv(path, args); return false;
-	}
-	return true;
-}
-
-void psExecUpdater() {
-	if (!_execUpdater()) {
-		psDeleteDir(cWorkingDir() + qsl("tupdates/temp"));
-	}
-}
-
-void psExecTelegram(const QString &crashreport) {
-	_execUpdater(false, crashreport);
 }
 
 bool psShowOpenWithMenu(int x, int y, const QString &file) {

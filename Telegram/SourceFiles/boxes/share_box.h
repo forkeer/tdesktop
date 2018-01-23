@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
@@ -115,7 +102,7 @@ public:
 	Inner(QWidget *parent, ShareBox::FilterCallback &&filterCallback);
 
 	void setPeerSelectedChangedCallback(base::lambda<void(PeerData *peer, bool selected)> callback);
-	void peerUnselected(PeerData *peer);
+	void peerUnselected(not_null<PeerData*> peer);
 
 	QVector<PeerData*> selected() const;
 	bool hasSelected() const;
@@ -125,7 +112,6 @@ public:
 	void activateSkipRow(int direction);
 	void activateSkipColumn(int direction);
 	void activateSkipPage(int pageHeight, int direction);
-	void setVisibleTopBottom(int visibleTop, int visibleBottom) override;
 	void updateFilter(QString filter = QString());
 
 	~Inner();
@@ -138,6 +124,10 @@ signals:
 	void searchByUsername();
 
 protected:
+	void visibleTopBottomUpdated(
+		int visibleTop,
+		int visibleBottom) override;
+
 	void paintEvent(QPaintEvent *e) override;
 	void enterEventHook(QEvent *e) override;
 	void leaveEventHook(QEvent *e) override;
@@ -160,11 +150,11 @@ private:
 		Text name;
 		Animation nameActive;
 	};
-	void paintChat(Painter &p, TimeMs ms, Chat *chat, int index);
-	void updateChat(PeerData *peer);
-	void updateChatName(Chat *chat, PeerData *peer);
-	void repaintChat(PeerData *peer);
-	int chatIndex(PeerData *peer) const;
+	void paintChat(Painter &p, TimeMs ms, not_null<Chat*> chat, int index);
+	void updateChat(not_null<PeerData*> peer);
+	void updateChatName(not_null<Chat*> chat, not_null<PeerData*> peer);
+	void repaintChat(not_null<PeerData*> peer);
+	int chatIndex(not_null<PeerData*> peer) const;
 	void repaintChatAtIndex(int index);
 	Chat *getChatAtIndex(int index);
 
@@ -174,7 +164,10 @@ private:
 		Default,
 		SkipCallback,
 	};
-	void changePeerCheckState(Chat *chat, bool checked, ChangeStateWay useCallback = ChangeStateWay::Default);
+	void changePeerCheckState(
+		not_null<Chat*> chat,
+		bool checked,
+		ChangeStateWay useCallback = ChangeStateWay::Default);
 
 	Chat *getChat(Dialogs::Row *row);
 	void setActive(int active);

@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
@@ -31,7 +18,7 @@ class RadioenumGroup;
 template <typename Enum>
 class Radioenum;
 template <typename Widget>
-class WidgetSlideWrap;
+class SlideWrap;
 } // namespace Ui
 
 class EditPrivacyBox : public BoxContent, private MTP::Sender {
@@ -103,7 +90,7 @@ private:
 	void editExceptionUsers(Exception exception);
 	QString exceptionLinkText(Exception exception);
 	std::vector<not_null<UserData*>> &exceptionUsers(Exception exception);
-	object_ptr<Ui::WidgetSlideWrap<Ui::LinkButton>> &exceptionLink(Exception exception);
+	object_ptr<Ui::SlideWrap<Ui::LinkButton>> &exceptionLink(Exception exception);
 
 	std::unique_ptr<Controller> _controller;
 	Option _option = Option::Everyone;
@@ -116,8 +103,8 @@ private:
 	object_ptr<Ui::Radioenum<Option>> _nobody = { nullptr };
 	object_ptr<Ui::FlatLabel> _warning = { nullptr };
 	object_ptr<Ui::FlatLabel> _exceptionsTitle = { nullptr };
-	object_ptr<Ui::WidgetSlideWrap<Ui::LinkButton>> _alwaysLink = { nullptr };
-	object_ptr<Ui::WidgetSlideWrap<Ui::LinkButton>> _neverLink = { nullptr };
+	object_ptr<Ui::SlideWrap<Ui::LinkButton>> _alwaysLink = { nullptr };
+	object_ptr<Ui::SlideWrap<Ui::LinkButton>> _neverLink = { nullptr };
 	object_ptr<Ui::FlatLabel> _exceptionsDescription = { nullptr };
 
 	std::vector<not_null<UserData*>> _alwaysUsers;

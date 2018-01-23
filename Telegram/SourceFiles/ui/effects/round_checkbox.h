@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
@@ -43,27 +30,16 @@ public:
 	void invalidateCache();
 
 private:
-	struct Icon {
-		Animation fadeIn;
-		Animation fadeOut;
-		QPixmap wideCheckCache;
-	};
-	void removeFadeOutedIcons();
-	void prepareWideCheckIconCache(Icon *icon);
 	void prepareInactiveCache();
-	QRect cacheDestRect(int x, int y, float64 scale) const;
 
 	const style::RoundCheckbox &_st;
 	base::lambda<void()> _updateCallback;
 
 	bool _checked = false;
-	std::vector<Icon> _icons;
+	Animation _checkedProgress;
 
 	bool _displayInactive = false;
 	QPixmap _inactiveCacheBg, _inactiveCacheFg;
-
-	// Those pixmaps are shared among all checkboxes that have the same style.
-	QPixmap _wideCheckBgCache, _wideCheckFullCache;
 
 };
 

@@ -1,25 +1,15 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "messenger.h"
 
+#include <rpl/complete.h>
+#include "data/data_photo.h"
+#include "data/data_document.h"
 #include "base/timer.h"
 #include "storage/localstorage.h"
 #include "platform/platform_specific.h"
@@ -44,6 +34,7 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 #include "window/themes/window_theme.h"
 #include "history/history_location_manager.h"
 #include "ui/widgets/tooltip.h"
+#include "ui/text_options.h"
 #include "storage/serialize_common.h"
 #include "window/window_controller.h"
 #include "base/qthelp_regex.h"
@@ -66,13 +57,15 @@ Messenger *Messenger::InstancePointer() {
 
 struct Messenger::Private {
 	UserId authSessionUserId = 0;
-	std::unique_ptr<Local::StoredAuthSession> storedAuthSession;
+	std::unique_ptr<AuthSessionData> storedAuthSession;
 	MTP::Instance::Config mtpConfig;
 	MTP::AuthKeysList mtpKeysToDestroy;
 	base::Timer quitTimer;
 };
 
-Messenger::Messenger() : QObject()
+Messenger::Messenger(not_null<Core::Launcher*> launcher)
+: QObject()
+, _launcher(launcher)
 , _private(std::make_unique<Private>())
 , _langpack(std::make_unique<Lang::Instance>())
 , _audio(std::make_unique<Media::Audio::Instance>())
@@ -110,7 +103,7 @@ Messenger::Messenger() : QObject()
 
 	style::startManager();
 	anim::startManager();
-	HistoryInit();
+	Ui::InitTextOptions();
 	Media::Player::start();
 
 	DEBUG_LOG(("Application Info: inited..."));
@@ -127,7 +120,6 @@ Messenger::Messenger() : QObject()
 	QMimeDatabase().mimeTypeForName(qsl("text/plain"));
 
 	_window = std::make_unique<MainWindow>();
-	_window->createWinId();
 	_window->init();
 
 	auto currentGeometry = _window->geometry();
@@ -197,31 +189,37 @@ bool Messenger::hideMediaView() {
 	return false;
 }
 
-void Messenger::showPhoto(not_null<const PhotoOpenClickHandler*> link, HistoryItem *item) {
-	return (!item && link->peer())
-		? showPhoto(link->photo(), link->peer())
+void Messenger::showPhoto(not_null<const PhotoOpenClickHandler*> link) {
+	const auto item = App::histItemById(link->context());
+	const auto peer = link->peer();
+	return (!item && peer)
+		? showPhoto(link->photo(), peer)
 		: showPhoto(link->photo(), item);
 }
 
 void Messenger::showPhoto(not_null<PhotoData*> photo, HistoryItem *item) {
-	if (_mediaView->isHidden()) Ui::hideLayer(true);
+	if (_mediaView->isHidden()) Ui::hideLayer(anim::type::instant);
 	_mediaView->showPhoto(photo, item);
 	_mediaView->activateWindow();
 	_mediaView->setFocus();
 }
 
-void Messenger::showPhoto(not_null<PhotoData*> photo, PeerData *peer) {
-	if (_mediaView->isHidden()) Ui::hideLayer(true);
+void Messenger::showPhoto(
+		not_null<PhotoData*> photo,
+		not_null<PeerData*> peer) {
+	if (_mediaView->isHidden()) Ui::hideLayer(anim::type::instant);
 	_mediaView->showPhoto(photo, peer);
 	_mediaView->activateWindow();
 	_mediaView->setFocus();
 }
 
 void Messenger::showDocument(not_null<DocumentData*> document, HistoryItem *item) {
-	if (cUseExternalVideoPlayer() && document->isVideo()) {
+	if (cUseExternalVideoPlayer() && document->isVideoFile()) {
 		QDesktopServices::openUrl(QUrl("file:///" + document->location(false).fname));
 	} else {
-		if (_mediaView->isHidden()) Ui::hideLayer(true);
+		if (_mediaView->isHidden()) {
+			Ui::hideLayer(anim::type::instant);
+		}
 		_mediaView->showDocument(document, item);
 		_mediaView->activateWindow();
 		_mediaView->setFocus();
@@ -334,14 +332,14 @@ void Messenger::setAuthSessionUserId(UserId userId) {
 	_private->authSessionUserId = userId;
 }
 
-void Messenger::setAuthSessionFromStorage(std::unique_ptr<Local::StoredAuthSession> data) {
+void Messenger::setAuthSessionFromStorage(std::unique_ptr<AuthSessionData> data) {
 	Expects(!authSession());
 	_private->storedAuthSession = std::move(data);
 }
 
 AuthSessionData *Messenger::getAuthSessionData() {
 	if (_private->authSessionUserId) {
-		return _private->storedAuthSession ? &_private->storedAuthSession->data : nullptr;
+		return _private->storedAuthSession ? _private->storedAuthSession.get() : nullptr;
 	} else if (_authSession) {
 		return &_authSession->data();
 	}
@@ -411,11 +409,8 @@ void Messenger::startMtp() {
 	}
 	if (_private->storedAuthSession) {
 		if (_authSession) {
-			_authSession->data().copyFrom(_private->storedAuthSession->data);
-			if (auto window = App::wnd()) {
-				Assert(window->controller() != nullptr);
-				window->controller()->dialogsWidthRatio().set(_private->storedAuthSession->dialogsWidthRatio);
-			}
+			_authSession->data().moveFrom(
+				std::move(*_private->storedAuthSession));
 		}
 		_private->storedAuthSession.reset();
 	}
@@ -546,7 +541,7 @@ void Messenger::chatPhotoDone(PeerId peer, const MTPUpdates &updates) {
 	emit peerPhotoDone(peer);
 }
 
-bool Messenger::peerPhotoFail(PeerId peer, const RPCError &error) {
+bool Messenger::peerPhotoFailed(PeerId peer, const RPCError &error) {
 	if (MTP::isDefaultHandledError(error)) return false;
 
 	LOG(("Application Error: update photo failed %1: %2").arg(error.type()).arg(error.description()));
@@ -559,12 +554,12 @@ void Messenger::peerClearPhoto(PeerId id) {
 	if (!AuthSession::Exists()) return;
 
 	if (id == Auth().userPeerId()) {
-		MTP::send(MTPphotos_UpdateProfilePhoto(MTP_inputPhotoEmpty()), rpcDone(&Messenger::selfPhotoCleared), rpcFail(&Messenger::peerPhotoFail, id));
+		MTP::send(MTPphotos_UpdateProfilePhoto(MTP_inputPhotoEmpty()), rpcDone(&Messenger::selfPhotoCleared), rpcFail(&Messenger::peerPhotoFailed, id));
 	} else if (peerIsChat(id)) {
-		MTP::send(MTPmessages_EditChatPhoto(peerToBareMTPInt(id), MTP_inputChatPhotoEmpty()), rpcDone(&Messenger::chatPhotoCleared, id), rpcFail(&Messenger::peerPhotoFail, id));
+		MTP::send(MTPmessages_EditChatPhoto(peerToBareMTPInt(id), MTP_inputChatPhotoEmpty()), rpcDone(&Messenger::chatPhotoCleared, id), rpcFail(&Messenger::peerPhotoFailed, id));
 	} else if (peerIsChannel(id)) {
 		if (auto channel = App::channelLoaded(id)) {
-			MTP::send(MTPchannels_EditPhoto(channel->inputChannel, MTP_inputChatPhotoEmpty()), rpcDone(&Messenger::chatPhotoCleared, id), rpcFail(&Messenger::peerPhotoFail, id));
+			MTP::send(MTPchannels_EditPhoto(channel->inputChannel, MTP_inputChatPhotoEmpty()), rpcDone(&Messenger::chatPhotoCleared, id), rpcFail(&Messenger::peerPhotoFailed, id));
 		}
 	}
 }
@@ -654,13 +649,13 @@ void Messenger::photoUpdated(const FullMsgId &msgId, bool silent, const MTPInput
 	if (i != photoUpdates.end()) {
 		auto id = i.value();
 		if (id == Auth().userPeerId()) {
-			MTP::send(MTPphotos_UploadProfilePhoto(file), rpcDone(&Messenger::selfPhotoDone), rpcFail(&Messenger::peerPhotoFail, id));
+			MTP::send(MTPphotos_UploadProfilePhoto(file), rpcDone(&Messenger::selfPhotoDone), rpcFail(&Messenger::peerPhotoFailed, id));
 		} else if (peerIsChat(id)) {
 			auto history = App::history(id);
-			history->sendRequestId = MTP::send(MTPmessages_EditChatPhoto(history->peer->asChat()->inputChat, MTP_inputChatUploadedPhoto(file)), rpcDone(&Messenger::chatPhotoDone, id), rpcFail(&Messenger::peerPhotoFail, id), 0, 0, history->sendRequestId);
+			history->sendRequestId = MTP::send(MTPmessages_EditChatPhoto(history->peer->asChat()->inputChat, MTP_inputChatUploadedPhoto(file)), rpcDone(&Messenger::chatPhotoDone, id), rpcFail(&Messenger::peerPhotoFailed, id), 0, 0, history->sendRequestId);
 		} else if (peerIsChannel(id)) {
 			auto history = App::history(id);
-			history->sendRequestId = MTP::send(MTPchannels_EditPhoto(history->peer->asChannel()->inputChannel, MTP_inputChatUploadedPhoto(file)), rpcDone(&Messenger::chatPhotoDone, id), rpcFail(&Messenger::peerPhotoFail, id), 0, 0, history->sendRequestId);
+			history->sendRequestId = MTP::send(MTPchannels_EditPhoto(history->peer->asChannel()->inputChannel, MTP_inputChatUploadedPhoto(file)), rpcDone(&Messenger::chatPhotoDone, id), rpcFail(&Messenger::peerPhotoFailed, id), 0, 0, history->sendRequestId);
 		}
 	}
 }
@@ -849,7 +844,7 @@ bool Messenger::openLocalUrl(const QString &url) {
 	return false;
 }
 
-void Messenger::uploadProfilePhoto(const QImage &tosend, const PeerId &peerId) {
+void Messenger::uploadProfilePhoto(QImage &&tosend, const PeerId &peerId) {
 	PreparedPhotoThumbs photoThumbs;
 	QVector<MTPPhotoSize> photoSizes;
 
@@ -979,7 +974,6 @@ void Messenger::checkMediaViewActivation() {
 void Messenger::loggedOut() {
 	if (_mediaView) {
 		hideMediaView();
-		_mediaView->rpcClear();
 		_mediaView->clearData();
 	}
 }
@@ -993,6 +987,36 @@ QPoint Messenger::getPointForCallPanelCenter() const {
 		return activeWindow->windowHandle()->screen()->geometry().center();
 	}
 	return QApplication::desktop()->screenGeometry().center();
+}
+
+// macOS Qt bug workaround, sometimes no leaveEvent() gets to the nested widgets.
+void Messenger::registerLeaveSubscription(QWidget *widget) {
+#ifdef Q_OS_MAC
+	if (auto topLevel = widget->window()) {
+		if (topLevel == _window.get()) {
+			auto weak = make_weak(widget);
+			auto subscription = _window->leaveEvents(
+			) | rpl::start_with_next([weak] {
+				if (const auto window = weak.data()) {
+					QEvent ev(QEvent::Leave);
+					QGuiApplication::sendEvent(window, &ev);
+				}
+			});
+			_leaveSubscriptions.emplace_back(weak, std::move(subscription));
+		}
+	}
+#endif // Q_OS_MAC
+}
+
+void Messenger::unregisterLeaveSubscription(QWidget *widget) {
+#ifdef Q_OS_MAC
+	_leaveSubscriptions = std::move(
+		_leaveSubscriptions
+	) | ranges::action::remove_if([&](const LeaveSubscription &subscription) {
+		auto pointer = subscription.pointer.data();
+		return !pointer || (pointer == widget);
+	});
+#endif // Q_OS_MAC
 }
 
 void Messenger::QuitAttempt() {

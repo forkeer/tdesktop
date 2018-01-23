@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "application.h"
 
@@ -26,8 +13,10 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 #include "storage/localstorage.h"
 #include "autoupdater.h"
 #include "window/notifications_manager.h"
+#include "core/crash_reports.h"
 #include "messenger.h"
 #include "base/timer.h"
+#include "core/crash_report_window.h"
 
 namespace {
 
@@ -71,8 +60,13 @@ QString _escapeFrom7bit(const QString &str) {
 
 } // namespace
 
-Application::Application(int &argc, char **argv) : QApplication(argc, argv) {
-	QByteArray d(QFile::encodeName(QDir(cWorkingDir()).absolutePath()));
+Application::Application(
+		not_null<Core::Launcher*> launcher,
+		int &argc,
+		char **argv)
+: QApplication(argc, argv)
+, _launcher(launcher) {
+	const auto d = QFile::encodeName(QDir(cWorkingDir()).absolutePath());
 	char h[33] = { 0 };
 	hashMd5Hex(d.constData(), d.size(), h);
 #ifndef OS_MAC_STORE
@@ -206,12 +200,12 @@ void Application::singleInstanceChecked() {
 	if (!Logs::started() || (!cManyInstance() && !Logs::instanceChecked())) {
 		new NotStartedWindow();
 	} else {
-		SignalHandlers::Status status = SignalHandlers::start();
-		if (status == SignalHandlers::CantOpen) {
+		const auto status = CrashReports::Start();
+		if (status == CrashReports::CantOpen) {
 			new NotStartedWindow();
-		} else if (status == SignalHandlers::LastCrashed) {
+		} else if (status == CrashReports::LastCrashed) {
 			if (Sandbox::LastCrashDump().isEmpty()) { // don't handle bad closing for now
-				if (SignalHandlers::restart() == SignalHandlers::CantOpen) {
+				if (CrashReports::Restart() == CrashReports::CantOpen) {
 					new NotStartedWindow();
 				} else {
 					Sandbox::launch();
@@ -313,7 +307,7 @@ void Application::startApplication() {
 
 void Application::createMessenger() {
 	Expects(!App::quitting());
-	_messengerInstance = std::make_unique<Messenger>();
+	_messengerInstance = std::make_unique<Messenger>(_launcher);
 }
 
 void Application::closeApplication() {

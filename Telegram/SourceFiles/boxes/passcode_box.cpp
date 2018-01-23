@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "boxes/passcode_box.h"
 
@@ -320,7 +307,7 @@ void PasscodeBox::onSave(bool force) {
 			_skipEmailWarning = true;
 			_replacedBy = Ui::show(Box<ConfirmBox>(lang(lng_cloud_password_about_recover), lang(lng_cloud_password_skip_email), st::attentionBoxButton, base::lambda_guarded(this, [this] {
 				onSave(true);
-			})), KeepOtherLayers);
+			})), LayerOption::KeepOther);
 		} else {
 			QByteArray newPasswordData = pwd.isEmpty() ? QByteArray() : (_newSalt + pwd.toUtf8() + _newSalt);
 			QByteArray newPasswordHash = pwd.isEmpty() ? QByteArray() : QByteArray(32, Qt::Uninitialized);
@@ -401,7 +388,9 @@ void PasscodeBox::onRecoverExpired() {
 void PasscodeBox::recover() {
 	if (_pattern == "-") return;
 
-	_replacedBy = Ui::show(Box<RecoverBox>(_pattern), KeepOtherLayers);
+	_replacedBy = Ui::show(
+		Box<RecoverBox>(_pattern),
+		LayerOption::KeepOther);
 	connect(_replacedBy, SIGNAL(reloadPassword()), this, SIGNAL(reloadPassword()));
 	connect(_replacedBy, SIGNAL(recoveryExpired()), this, SLOT(onRecoverExpired()));
 }
@@ -523,7 +512,7 @@ bool RecoverBox::codeSubmitFail(const RPCError &error) {
 	if (cDebug()) { // internal server error
 		_error =  err + ": " + error.description();
 	} else {
-		_error = lang(lng_server_error);
+		_error = Lang::Hard::ServerError();
 	}
 	update();
 	_recoverCode->setFocus();

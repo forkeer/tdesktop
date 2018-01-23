@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "ui/text/text.h"
 
@@ -36,6 +23,15 @@ inline int32 countBlockHeight(const ITextBlock *b, const style::TextStyle *st) {
 }
 
 } // namespace
+
+bool chIsBad(QChar ch) {
+#ifdef OS_MAC_OLD
+	if (cIsSnowLeopard() && (ch == 8207 || ch == 8206)) {
+		return true;
+	}
+#endif // OS_MAC_OLD
+	return (ch == 0) || (ch >= 8232 && ch < 8237) || (ch >= 65024 && ch < 65040 && ch != 65039) || (ch >= 127 && ch < 160 && ch != 156) || (cPlatform() == dbipMac && ch >= 0x0B00 && ch <= 0x0B7F && chIsDiac(ch) && cIsElCapitan()); // tmp hack see https://bugreports.qt.io/browse/QTBUG-48910
+}
 
 QString textcmdSkipBlock(ushort w, ushort h) {
 	static QString cmd(5, TextCommand);
@@ -593,41 +589,45 @@ public:
 				if (_t->_links.size() < lnkIndex) {
 					_t->_links.resize(lnkIndex);
 					auto &link = links[lnkIndex - maxLnkIndex - 1];
-					ClickHandlerPtr handler;
+					auto handler = ClickHandlerPtr();
 					switch (link.type) {
-					case EntityInTextCustomUrl: handler = MakeShared<HiddenUrlClickHandler>(link.data); break;
+					case EntityInTextCustomUrl: {
+						if (!link.data.isEmpty()) {
+							handler = std::make_shared<HiddenUrlClickHandler>(link.data);
+						}
+					} break;
 					case EntityInTextEmail:
-					case EntityInTextUrl: handler = MakeShared<UrlClickHandler>(link.data, link.displayStatus == LinkDisplayedFull); break;
-					case EntityInTextBotCommand: handler = MakeShared<BotCommandClickHandler>(link.data); break;
+					case EntityInTextUrl: handler = std::make_shared<UrlClickHandler>(link.data, link.displayStatus == LinkDisplayedFull); break;
+					case EntityInTextBotCommand: handler = std::make_shared<BotCommandClickHandler>(link.data); break;
 					case EntityInTextHashtag:
 						if (options.flags & TextTwitterMentions) {
-							handler = MakeShared<UrlClickHandler>(qsl("https://twitter.com/hashtag/") + link.data.mid(1) + qsl("?src=hash"), true);
+							handler = std::make_shared<UrlClickHandler>(qsl("https://twitter.com/hashtag/") + link.data.mid(1) + qsl("?src=hash"), true);
 						} else if (options.flags & TextInstagramMentions) {
-							handler = MakeShared<UrlClickHandler>(qsl("https://instagram.com/explore/tags/") + link.data.mid(1) + '/', true);
+							handler = std::make_shared<UrlClickHandler>(qsl("https://instagram.com/explore/tags/") + link.data.mid(1) + '/', true);
 						} else {
-							handler = MakeShared<HashtagClickHandler>(link.data);
+							handler = std::make_shared<HashtagClickHandler>(link.data);
 						}
 					break;
 					case EntityInTextMention:
 						if (options.flags & TextTwitterMentions) {
-							handler = MakeShared<UrlClickHandler>(qsl("https://twitter.com/") + link.data.mid(1), true);
+							handler = std::make_shared<UrlClickHandler>(qsl("https://twitter.com/") + link.data.mid(1), true);
 						} else if (options.flags & TextInstagramMentions) {
-							handler = MakeShared<UrlClickHandler>(qsl("https://instagram.com/") + link.data.mid(1) + '/', true);
+							handler = std::make_shared<UrlClickHandler>(qsl("https://instagram.com/") + link.data.mid(1) + '/', true);
 						} else {
-							handler = MakeShared<MentionClickHandler>(link.data);
+							handler = std::make_shared<MentionClickHandler>(link.data);
 						}
 					break;
 					case EntityInTextMentionName: {
 						auto fields = TextUtilities::MentionNameDataToFields(link.data);
 						if (fields.userId) {
-							handler = MakeShared<MentionNameClickHandler>(link.text, fields.userId, fields.accessHash);
+							handler = std::make_shared<MentionNameClickHandler>(link.text, fields.userId, fields.accessHash);
 						} else {
 							LOG(("Bad mention name: %1").arg(link.data));
 						}
 					} break;
 					}
 
-					if (!handler.isNull()) {
+					if (handler) {
 						_t->setLink(lnkIndex, handler);
 					}
 				}
@@ -659,8 +659,13 @@ private:
 	};
 
 	void computeLinkText(const QString &linkData, QString *outLinkText, LinkDisplayStatus *outDisplayStatus) {
-		QUrl url(linkData), good(url.isValid() ? url.toEncoded() : "");
-		QString readable = good.isValid() ? good.toDisplayString() : linkData;
+		auto url = QUrl(linkData);
+		auto good = QUrl(url.isValid()
+			? url.toEncoded()
+			: QByteArray());
+		auto readable = good.isValid()
+			? good.toDisplayString()
+			: linkData;
 		*outLinkText = _t->_st->font->elided(readable, st::linkCropLimit);
 		*outDisplayStatus = (*outLinkText == readable) ? LinkDisplayedFull : LinkDisplayedElided;
 	}
@@ -717,7 +722,7 @@ enum { _MaxItemLength = 4096 };
 
 struct BidiControl {
 	inline BidiControl(bool rtl)
-		: cCtx(0), base(rtl ? 1 : 0), level(rtl ? 1 : 0), override(false) {}
+		: base(rtl ? 1 : 0), level(rtl ? 1 : 0) {}
 
 	inline void embed(bool rtl, bool o = false) {
 		unsigned int toAdd = 1;
@@ -751,13 +756,13 @@ struct BidiControl {
 	}
 
 	struct {
-		unsigned int level;
-		bool override;
+		unsigned int level = 0;
+		bool override = false;
 	} ctx[_MaxBidiLevel];
-	unsigned int cCtx;
+	unsigned int cCtx = 0;
 	const unsigned int base;
 	unsigned int level;
-	bool override;
+	bool override = false;
 };
 
 static void eAppendItems(QScriptAnalysis *analysis, int &start, int &stop, const BidiControl &control, QChar::Direction dir) {
@@ -1191,7 +1196,7 @@ private:
 					}
 				}
 				if (_lookupLink) {
-					_lookupResult.link.clear();
+					_lookupResult.link = nullptr;
 				}
 				_lookupResult.uponSymbol = false;
 				return false;
@@ -1206,7 +1211,7 @@ private:
 //					_lookupResult.uponSymbol = ((_lookupX < _x + _w) && (_lineEnd < _t->_text.size()) && (!_endBlock || _endBlock->type() != TextBlockTSkip)) ? true : false;
 				}
 				if (_lookupLink) {
-					_lookupResult.link.clear();
+					_lookupResult.link = nullptr;
 				}
 				_lookupResult.uponSymbol = false;
 				return false;
@@ -2115,7 +2120,7 @@ private:
 								status.eor = QChar::DirON;
 								dir = QChar::DirAN;
 							}
-							// fall through
+							[[fallthrough]];
 						case QChar::DirEN:
 						case QChar::DirL:
 							eor = current;
@@ -2129,12 +2134,14 @@ private:
 							else
 								eor = current;
 							status.eor = QChar::DirEN;
-							dir = QChar::DirAN; break;
+							dir = QChar::DirAN;
+							break;
 						case QChar::DirES:
 						case QChar::DirCS:
 							if(status.eor == QChar::DirEN || dir == QChar::DirAN) {
 								eor = current; break;
 							}
+							[[fallthrough]];
 						case QChar::DirBN:
 						case QChar::DirB:
 						case QChar::DirS:
@@ -2164,11 +2171,13 @@ private:
 									eor = current; status.eor = dirCurrent;
 								}
 							}
+							[[fallthrough]];
 						default:
 							break;
 						}
 					break;
 				}
+				[[fallthrough]];
 			case QChar::DirAN:
 				hasBidi = true;
 				dirCurrent = QChar::DirAN;
@@ -2177,7 +2186,8 @@ private:
 					{
 					case QChar::DirL:
 					case QChar::DirAN:
-						eor = current; status.eor = QChar::DirAN; break;
+						eor = current; status.eor = QChar::DirAN;
+						break;
 					case QChar::DirR:
 					case QChar::DirAL:
 					case QChar::DirEN:
@@ -2192,6 +2202,7 @@ private:
 						if(status.eor == QChar::DirAN) {
 							eor = current; break;
 						}
+						[[fallthrough]];
 					case QChar::DirES:
 					case QChar::DirET:
 					case QChar::DirBN:
@@ -2222,6 +2233,7 @@ private:
 								eor = current; status.eor = dirCurrent;
 							}
 						}
+						[[fallthrough]];
 					default:
 						break;
 					}
@@ -2293,7 +2305,7 @@ private:
 					status.last = QChar::DirL;
 					break;
 				}
-				// fall through
+				[[fallthrough]];
 			default:
 				status.last = dirCurrent;
 			}

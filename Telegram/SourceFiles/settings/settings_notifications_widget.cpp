@@ -1,29 +1,16 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/settings_notifications_widget.h"
 
 #include "styles/style_settings.h"
 #include "lang/lang_keys.h"
 #include "storage/localstorage.h"
-#include "ui/effects/widget_slide_wrap.h"
+#include "ui/wrap/slide_wrap.h"
 #include "ui/widgets/checkbox.h"
 #include "ui/widgets/buttons.h"
 #include "mainwindow.h"
@@ -56,18 +43,18 @@ NotificationsWidget::NotificationsWidget(QWidget *parent, UserData *self) : Bloc
 void NotificationsWidget::createControls() {
 	style::margins margin(0, 0, 0, st::settingsSkip);
 	style::margins slidedPadding(0, margin.bottom() / 2, 0, margin.bottom() - (margin.bottom() / 2));
-	addChildRow(_desktopNotifications, margin, lang(lng_settings_desktop_notify), [this](bool) { onDesktopNotifications(); }, Global::DesktopNotify());
-	addChildRow(_showSenderName, margin, slidedPadding, lang(lng_settings_show_name), [this](bool) { onShowSenderName(); }, Global::NotifyView() <= dbinvShowName);
-	addChildRow(_showMessagePreview, margin, slidedPadding, lang(lng_settings_show_preview), [this](bool) { onShowMessagePreview(); }, Global::NotifyView() <= dbinvShowPreview);
+	createChildRow(_desktopNotifications, margin, lang(lng_settings_desktop_notify), [this](bool) { onDesktopNotifications(); }, Global::DesktopNotify());
+	createChildRow(_showSenderName, margin, slidedPadding, lang(lng_settings_show_name), [this](bool) { onShowSenderName(); }, Global::NotifyView() <= dbinvShowName);
+	createChildRow(_showMessagePreview, margin, slidedPadding, lang(lng_settings_show_preview), [this](bool) { onShowMessagePreview(); }, Global::NotifyView() <= dbinvShowPreview);
 	if (!_showSenderName->entity()->checked()) {
-		_showMessagePreview->hideFast();
+		_showMessagePreview->hide(anim::type::instant);
 	}
 	if (!_desktopNotifications->checked()) {
-		_showSenderName->hideFast();
-		_showMessagePreview->hideFast();
+		_showSenderName->hide(anim::type::instant);
+		_showMessagePreview->hide(anim::type::instant);
 	}
-	addChildRow(_playSound, margin, lang(lng_settings_sound_notify), [this](bool) { onPlaySound(); }, Global::SoundNotify());
-	addChildRow(_includeMuted, margin, lang(lng_settings_include_muted), [this](bool) { onIncludeMuted(); }, Global::IncludeMuted());
+	createChildRow(_playSound, margin, lang(lng_settings_sound_notify), [this](bool) { onPlaySound(); }, Global::SoundNotify());
+	createChildRow(_includeMuted, margin, lang(lng_settings_include_muted), [this](bool) { onIncludeMuted(); }, Global::IncludeMuted());
 
 	if (cPlatform() != dbipMac) {
 		createNotificationsControls();
@@ -87,11 +74,11 @@ void NotificationsWidget::createNotificationsControls() {
 #endif // Q_OS_WIN || Q_OS_LINUX64 || Q_OS_LINUX32
 	}
 	if (!nativeNotificationsLabel.isEmpty()) {
-		addChildRow(_nativeNotifications, margin, nativeNotificationsLabel, [this](bool) { onNativeNotifications(); }, Global::NativeNotifications());
+		createChildRow(_nativeNotifications, margin, nativeNotificationsLabel, [this](bool) { onNativeNotifications(); }, Global::NativeNotifications());
 	}
-	addChildRow(_advanced, margin, slidedPadding, lang(lng_settings_advanced_notifications), SLOT(onAdvanced()));
+	createChildRow(_advanced, margin, slidedPadding, lang(lng_settings_advanced_notifications), SLOT(onAdvanced()));
 	if (!nativeNotificationsLabel.isEmpty() && Global::NativeNotifications()) {
-		_advanced->hideFast();
+		_advanced->hide(anim::type::instant);
 	}
 }
 
@@ -106,8 +93,13 @@ void NotificationsWidget::onDesktopNotifications() {
 
 void NotificationsWidget::desktopEnabledUpdated() {
 	_desktopNotifications->setChecked(Global::DesktopNotify());
-	_showSenderName->toggleAnimated(Global::DesktopNotify());
-	_showMessagePreview->toggleAnimated(Global::DesktopNotify() && _showSenderName->entity()->checked());
+	_showSenderName->toggle(
+		Global::DesktopNotify(),
+		anim::type::normal);
+	_showMessagePreview->toggle(
+		Global::DesktopNotify()
+			&& _showSenderName->entity()->checked(),
+		anim::type::normal);
 }
 
 void NotificationsWidget::onShowSenderName() {
@@ -146,7 +138,9 @@ void NotificationsWidget::onShowMessagePreview() {
 }
 
 void NotificationsWidget::viewParamUpdated() {
-	_showMessagePreview->toggleAnimated(_showSenderName->entity()->checked());
+	_showMessagePreview->toggle(
+		_showSenderName->entity()->checked(),
+		anim::type::normal);
 }
 
 void NotificationsWidget::onNativeNotifications() {
@@ -159,7 +153,9 @@ void NotificationsWidget::onNativeNotifications() {
 
 	Auth().notifications().createManager();
 
-	_advanced->toggleAnimated(!Global::NativeNotifications());
+	_advanced->toggle(
+		!Global::NativeNotifications(),
+		anim::type::normal);
 }
 
 void NotificationsWidget::onAdvanced() {

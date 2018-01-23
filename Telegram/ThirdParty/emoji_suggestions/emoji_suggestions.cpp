@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "emoji_suggestions.h"
 
@@ -386,36 +373,51 @@ int Completer::findEqualCharsCount(int position, const utf16string *word) {
 
 std::vector<Suggestion> Completer::prepareResult() {
 	auto firstCharOfQuery = _query[0];
-	std::stable_partition(_result.begin(), _result.end(), [firstCharOfQuery](Result &result) {
+	auto reorder = [&](auto &&predicate) {
+		std::stable_partition(
+			std::begin(_result),
+			std::end(_result),
+			std::forward<decltype(predicate)>(predicate));
+	};
+	reorder([firstCharOfQuery](Result &result) {
 		auto firstCharAfterColon = result.replacement->replacement[1];
 		return (firstCharAfterColon == firstCharOfQuery);
 	});
-	std::stable_partition(_result.begin(), _result.end(), [](Result &result) {
+	reorder([](Result &result) {
 		return (result.wordsUsed < 2);
 	});
-	std::stable_partition(_result.begin(), _result.end(), [](Result &result) {
+	reorder([](Result &result) {
 		return (result.wordsUsed < 3);
 	});
-	std::stable_partition(_result.begin(), _result.end(), [this](Result &result) {
+	reorder([&](Result &result) {
 		return isExactMatch(result.replacement->replacement);
 	});
 
 	auto result = std::vector<Suggestion>();
 	result.reserve(_result.size());
 	for (auto &item : _result) {
-		result.emplace_back(item.replacement->emoji, item.replacement->replacement, item.replacement->replacement);
+		result.emplace_back(
+			item.replacement->emoji,
+			item.replacement->replacement,
+			item.replacement->replacement);
 	}
 	return result;
 }
 
 string_span Completer::findWordsStartingWith(utf16char ch) {
-	auto begin = std::lower_bound(_currentItemWords.begin(), _currentItemWords.end(), ch, [](utf16string word, utf16char ch) {
-		return word[0] < ch;
-	});
-	auto end = std::upper_bound(_currentItemWords.begin(), _currentItemWords.end(), ch, [](utf16char ch, utf16string word) {
-		return ch < word[0];
-	});
-	return _currentItemWords.subspan(begin - _currentItemWords.begin(), end - begin);
+	auto begin = std::lower_bound(
+		std::begin(_currentItemWords),
+		std::end(_currentItemWords),
+		ch,
+		[](utf16string word, utf16char ch) { return word[0] < ch; });
+	auto end = std::upper_bound(
+		std::begin(_currentItemWords),
+		std::end(_currentItemWords),
+		ch,
+		[](utf16char ch, utf16string word) { return ch < word[0]; });
+	return _currentItemWords.subspan(
+		begin - _currentItemWords.begin(),
+		end - begin);
 }
 
 } // namespace

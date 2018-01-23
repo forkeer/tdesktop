@@ -1,27 +1,15 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
 #include "ui/widgets/buttons.h"
 #include "styles/style_widgets.h"
+#include <rpl/event_stream.h>
 
 namespace Ui {
 
@@ -31,12 +19,16 @@ public:
 
 	void setCheckedFast(bool checked);
 	void setCheckedAnimated(bool checked);
-	void finishAnimation();
+	void finishAnimating();
 	void setUpdateCallback(base::lambda<void()> updateCallback);
 	bool checked() const {
 		return _checked;
 	}
 	float64 currentAnimationValue(TimeMs ms);
+
+	auto checkedValue() const {
+		return _checks.events_starting_with(checked());
+	}
 
 	virtual QSize getSize() const = 0;
 
@@ -58,6 +50,8 @@ private:
 	bool _checked = false;
 	base::lambda<void()> _updateCallback;
 	Animation _toggleAnimation;
+
+	rpl::event_stream<bool> _checks;
 
 };
 
@@ -123,6 +117,7 @@ public:
 	Checkbox(QWidget *parent, const QString &text, const style::Checkbox &st, std::unique_ptr<AbstractCheckView> check);
 
 	void setText(const QString &text);
+	void setCheckAlignment(style::align alignment);
 
 	bool checked() const;
 	enum class NotifyAboutChange {
@@ -132,12 +127,17 @@ public:
 	void setChecked(bool checked, NotifyAboutChange notify = NotifyAboutChange::Notify);
 	base::Observable<bool> checkedChanged;
 
-	void finishAnimations();
+	void finishAnimating();
 
 	QMargins getMargins() const override {
 		return _st.margin;
 	}
 	int naturalWidth() const override;
+
+	void updateCheck() {
+		rtlupdate(checkRect());
+	}
+	QRect checkRect() const;
 
 protected:
 	void paintEvent(QPaintEvent *e) override;
@@ -150,10 +150,6 @@ protected:
 
 	virtual void handlePress();
 
-	void updateCheck() {
-		rtlupdate(_checkRect);
-	}
-
 private:
 	void resizeToText();
 	QPixmap grabCheckCache() const;
@@ -163,7 +159,7 @@ private:
 	QPixmap _checkCache;
 
 	Text _text;
-	QRect _checkRect;
+	style::align _checkAlignment = style::al_left;
 
 };
 

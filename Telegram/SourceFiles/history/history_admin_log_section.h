@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
@@ -85,7 +72,7 @@ public:
 	Widget(QWidget *parent, not_null<Window::Controller*> controller, not_null<ChannelData*> channel);
 
 	not_null<ChannelData*> channel() const;
-	PeerData *peerForDialogs() const override {
+	PeerData *activePeer() const override {
 		return channel();
 	}
 
@@ -95,14 +82,16 @@ public:
 
 	QPixmap grabForShowAnimation(const Window::SectionSlideParams &params) override;
 
-	bool showInternal(not_null<Window::SectionMemento*> memento) override;
+	bool showInternal(
+		not_null<Window::SectionMemento*> memento,
+		const Window::SectionShow &params) override;
 	std::unique_ptr<Window::SectionMemento> createMemento() override;
 
 	void setInternalState(const QRect &geometry, not_null<SectionMemento*> memento);
 
 	// Float player interface.
-	bool wheelEventFromFloatPlayer(QEvent *e, Window::Column myColumn, Window::Column playerColumn) override;
-	QRect rectForFloatPlayer(Window::Column myColumn, Window::Column playerColumn) override;
+	bool wheelEventFromFloatPlayer(QEvent *e) override;
+	QRect rectForFloatPlayer() const override;
 
 	void applyFilter(FilterValue &&value);
 
@@ -112,7 +101,8 @@ protected:
 	void resizeEvent(QResizeEvent *e) override;
 	void paintEvent(QPaintEvent *e) override;
 
-	void showAnimatedHook() override;
+	void showAnimatedHook(
+		const Window::SectionSlideParams &params) override;
 	void showFinishedHook() override;
 	void doSetInnerFocus() override;
 
@@ -136,7 +126,11 @@ public:
 	SectionMemento(not_null<ChannelData*> channel) : _channel(channel) {
 	}
 
-	object_ptr<Window::SectionWidget> createWidget(QWidget *parent, not_null<Window::Controller*> controller, const QRect &geometry) override;
+	object_ptr<Window::SectionWidget> createWidget(
+		QWidget *parent,
+		not_null<Window::Controller*> controller,
+		Window::Column column,
+		const QRect &geometry) override;
 
 	not_null<ChannelData*> getChannel() const {
 		return _channel;

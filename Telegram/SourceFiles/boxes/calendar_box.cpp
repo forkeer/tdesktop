@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "boxes/calendar_box.h"
 
@@ -117,11 +104,6 @@ void CalendarBox::Context::showMonth(QDate month) {
 }
 
 void CalendarBox::Context::applyMonth(const QDate &month, bool forced) {
-	if (forced) {
-		_month.setForced(month);
-	} else {
-		_month.set(month);
-	}
 	_daysCount = month.daysInMonth();
 	_daysShift = daysShiftForMonth(month);
 	_rowsCount = rowsCountForMonth(month);
@@ -130,6 +112,11 @@ void CalendarBox::Context::applyMonth(const QDate &month, bool forced) {
 	_highlightedIndex = month.daysTo(_highlighted);
 	_minDayIndex = _min.isNull() ? INT_MIN : month.daysTo(_min);
 	_maxDayIndex = _max.isNull() ? INT_MAX : month.daysTo(_max);
+	if (forced) {
+		_month.setForced(month, true);
+	} else {
+		_month.set(month, true);
+	}
 }
 
 void CalendarBox::Context::skipMonth(int skip) {
@@ -219,6 +206,7 @@ protected:
 
 private:
 	void monthChanged(QDate month);
+	void setSelected(int selected);
 	void setPressed(int pressed);
 
 	int rowsLeft() const;
@@ -239,16 +227,21 @@ private:
 
 };
 
-CalendarBox::Inner::Inner(QWidget *parent, Context *context) : TWidget(parent)
+CalendarBox::Inner::Inner(QWidget *parent, Context *context)
+: TWidget(parent)
 , _context(context) {
 	setMouseTracking(true);
-	subscribe(context->month(), [this](QDate month) { monthChanged(month); });
+	subscribe(context->month(), [this](QDate month) {
+		monthChanged(month);
+	});
 }
 
 void CalendarBox::Inner::monthChanged(QDate month) {
+	setSelected(kEmptySelection);
 	_ripples.clear();
 	resizeToCurrent();
 	update();
+	sendSynteticMouseEvent(this, QEvent::MouseMove, Qt::NoButton);
 }
 
 void CalendarBox::Inner::resizeToCurrent() {
@@ -343,17 +336,31 @@ void CalendarBox::Inner::paintRows(Painter &p, QRect clip) {
 }
 
 void CalendarBox::Inner::mouseMoveEvent(QMouseEvent *e) {
-	auto point = e->pos();
-	auto row = floorclamp(point.y() - rowsTop(), st::calendarCellSize.height(), 0, _context->rowsCount());
-	auto col = floorclamp(point.x() - rowsLeft(), st::calendarCellSize.width(), 0, kDaysInWeek);
-	auto index = row * kDaysInWeek + col - _context->daysShift();
-	if (_context->isEnabled(index)) {
-		_selected = index;
-		setCursor(style::cur_pointer);
+	const auto size = st::calendarCellSize;
+	const auto point = e->pos();
+	const auto inner = QRect(
+		rowsLeft(),
+		rowsTop(),
+		kDaysInWeek * size.width(),
+		_context->rowsCount() * size.height());
+	if (inner.contains(point)) {
+		const auto row = (point.y() - rowsTop()) / size.height();
+		const auto col = (point.x() - rowsLeft()) / size.width();
+		const auto index = row * kDaysInWeek + col - _context->daysShift();
+		setSelected(index);
 	} else {
-		_selected = kEmptySelection;
-		setCursor(style::cur_default);
+		setSelected(kEmptySelection);
 	}
+}
+
+void CalendarBox::Inner::setSelected(int selected) {
+	if (selected != kEmptySelection && !_context->isEnabled(selected)) {
+		selected = kEmptySelection;
+	}
+	_selected = selected;
+	setCursor((_selected == kEmptySelection)
+		? style::cur_default
+		: style::cur_pointer);
 }
 
 void CalendarBox::Inner::mousePressEvent(QMouseEvent *e) {
@@ -400,7 +407,9 @@ CalendarBox::Inner::~Inner() = default;
 
 class CalendarBox::Title : public TWidget, private base::Subscriber {
 public:
-	Title(QWidget *parent, Context *context) : TWidget(parent), _context(context) {
+	Title(QWidget *parent, Context *context)
+	: TWidget(parent)
+	, _context(context) {
 		subscribe(_context->month(), [this](QDate date) { monthChanged(date); });
 	}
 

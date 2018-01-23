@@ -1,27 +1,15 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "profile/profile_block_peer_list.h"
 
 #include "ui/effects/ripple_animation.h"
 #include "ui/widgets/popup_menu.h"
+#include "ui/text_options.h"
 #include "styles/style_profile.h"
 #include "styles/style_widgets.h"
 #include "auth_session.h"
@@ -33,7 +21,7 @@ PeerListWidget::Item::Item(PeerData *peer) : peer(peer) {
 
 PeerListWidget::Item::~Item() = default;
 
-PeerListWidget::PeerListWidget(QWidget *parent, PeerData *peer, const QString &title, const style::ProfilePeerListItem &st, const QString &removeText)
+PeerListWidget::PeerListWidget(QWidget *parent, PeerData *peer, const QString &title, const style::PeerListItem &st, const QString &removeText)
 : BlockWidget(parent, peer, title)
 , _st(st)
 , _removeText(removeText)
@@ -45,12 +33,12 @@ PeerListWidget::PeerListWidget(QWidget *parent, PeerData *peer, const QString &t
 int PeerListWidget::resizeGetHeight(int newWidth) {
 	auto newHeight = getListTop();
 
-	newHeight += _items.size() * st::profileMemberHeight;
+	newHeight += _items.size() * _st.height;
 
 	return newHeight + _st.bottom;
 }
 
-void PeerListWidget::setVisibleTopBottom(int visibleTop, int visibleBottom) {
+void PeerListWidget::visibleTopBottomUpdated(int visibleTop, int visibleBottom) {
 	_visibleTop = visibleTop;
 	_visibleBottom = visibleBottom;
 
@@ -67,10 +55,10 @@ void PeerListWidget::paintContents(Painter &p) {
 	auto top = getListTop();
 	auto memberRowWidth = rowWidth();
 
-	auto from = floorclamp(_visibleTop - top, st::profileMemberHeight, 0, _items.size());
-	auto to = ceilclamp(_visibleBottom - top, st::profileMemberHeight, 0, _items.size());
+	auto from = floorclamp(_visibleTop - top, _st.height, 0, _items.size());
+	auto to = ceilclamp(_visibleBottom - top, _st.height, 0, _items.size());
 	for (auto i = from; i < to; ++i) {
-		auto y = top + i * st::profileMemberHeight;
+		auto y = top + i * _st.height;
 		auto selected = (_menuRowIndex >= 0) ? (i == _menuRowIndex) : (_pressed >= 0) ? (i == _pressed) : (i == _selected);
 		auto selectedRemove = selected && _selectedRemove;
 		if (_pressed >= 0 && !_pressedRemove) {
@@ -87,7 +75,7 @@ void PeerListWidget::paintItem(Painter &p, int x, int y, Item *item, bool select
 
 	auto memberRowWidth = rowWidth();
 	if (selected) {
-		paintOutlinedRect(p, x, y, memberRowWidth, st::profileMemberHeight);
+		paintOutlinedRect(p, x, y, memberRowWidth, _st.height);
 	}
 	if (auto &ripple = item->ripple) {
 		ripple->paint(p, x + _st.button.outlineWidth, y, width(), ms);
@@ -95,16 +83,19 @@ void PeerListWidget::paintItem(Painter &p, int x, int y, Item *item, bool select
 			ripple.reset();
 		}
 	}
-	int skip = st::profileMemberPhotoPosition.x();
+	int skip = _st.photoPosition.x();
 
-	item->peer->paintUserpicLeft(p, x + st::profileMemberPhotoPosition.x(), y + st::profileMemberPhotoPosition.y(), width(), st::profileMemberPhotoSize);
+	item->peer->paintUserpicLeft(p, x + _st.photoPosition.x(), y + _st.photoPosition.y(), width(), _st.photoSize);
 
 	if (item->name.isEmpty()) {
-		item->name.setText(st::msgNameStyle, App::peerName(item->peer), _textNameOptions);
+		item->name.setText(
+			st::msgNameStyle,
+			App::peerName(item->peer),
+			Ui::NameTextOptions());
 	}
-	int nameLeft = x + st::profileMemberNamePosition.x();
-	int nameTop = y + st::profileMemberNamePosition.y();
-	int nameWidth = memberRowWidth - st::profileMemberNamePosition.x() - skip;
+	int nameLeft = x + _st.namePosition.x();
+	int nameTop = y + _st.namePosition.y();
+	int nameWidth = memberRowWidth - _st.namePosition.x() - skip;
 	if (item->hasRemoveLink && selected) {
 		p.setFont(selectedKick ? st::normalFont->underline() : st::normalFont);
 		p.setPen(st::windowActiveTextFg);
@@ -128,7 +119,7 @@ void PeerListWidget::paintItem(Painter &p, int x, int y, Item *item, bool select
 		p.setPen(selected ? _st.statusFgOver : _st.statusFg);
 	}
 	p.setFont(st::normalFont);
-	p.drawTextLeft(x + st::profileMemberStatusPosition.x(), y + st::profileMemberStatusPosition.y(), width(), item->statusText);
+	p.drawTextLeft(x + _st.statusPosition.x(), y + _st.statusPosition.y(), width(), item->statusText);
 }
 
 void PeerListWidget::paintOutlinedRect(Painter &p, int x, int y, int w, int h) const {
@@ -155,13 +146,13 @@ void PeerListWidget::mousePressEvent(QMouseEvent *e) {
 		auto item = _items[_pressed];
 		if (!item->ripple) {
 			auto memberRowWidth = rowWidth();
-			auto mask = Ui::RippleAnimation::rectMask(QSize(memberRowWidth - _st.button.outlineWidth, st::profileMemberHeight));
+			auto mask = Ui::RippleAnimation::rectMask(QSize(memberRowWidth - _st.button.outlineWidth, _st.height));
 			item->ripple = std::make_unique<Ui::RippleAnimation>(_st.button.ripple, std::move(mask), [this, index = _pressed] {
 				repaintRow(index);
 			});
 		}
 		auto left = getListLeft() + _st.button.outlineWidth;
-		auto top = getListTop() + st::profileMemberHeight * _pressed;
+		auto top = getListTop() + _st.height * _pressed;
 		item->ripple->add(e->pos() - QPoint(left, top));
 	}
 }
@@ -250,14 +241,14 @@ void PeerListWidget::updateSelection() {
 	auto top = getListTop();
 	auto memberRowWidth = rowWidth();
 	if (mouse.x() >= left && mouse.x() < left + memberRowWidth && mouse.y() >= top) {
-		selected = (mouse.y() - top) / st::profileMemberHeight;
+		selected = (mouse.y() - top) / _st.height;
 		if (selected >= _items.size()) {
 			selected = -1;
 		} else if (_items[selected]->hasRemoveLink) {
-			int skip = st::profileMemberPhotoPosition.x();
-			int nameLeft = left + st::profileMemberNamePosition.x();
-			int nameTop = top + _selected * st::profileMemberHeight + st::profileMemberNamePosition.y();
-			int nameWidth = memberRowWidth - st::profileMemberNamePosition.x() - skip;
+			int skip = _st.photoPosition.x();
+			int nameLeft = left + _st.namePosition.x();
+			int nameTop = top + _selected * _st.height + _st.namePosition.y();
+			int nameWidth = memberRowWidth - _st.namePosition.x() - skip;
 			if (mouse.x() >= nameLeft + nameWidth - _removeWidth && mouse.x() < nameLeft + nameWidth) {
 				if (mouse.y() >= nameTop && mouse.y() < nameTop + st::normalFont->height) {
 					selectedKick = true;
@@ -294,7 +285,7 @@ void PeerListWidget::repaintSelectedRow() {
 void PeerListWidget::repaintRow(int index) {
 	if (index >= 0) {
 		auto left = getListLeft();
-		rtlupdate(left, getListTop() + index * st::profileMemberHeight, width() - left, st::profileMemberHeight);
+		rtlupdate(left, getListTop() + index * _st.height, width() - left, _st.height);
 	}
 }
 
@@ -303,14 +294,16 @@ int PeerListWidget::getListLeft() const {
 }
 
 int PeerListWidget::rowWidth() const {
-	return qMin(width() - getListLeft(), st::profileBlockWideWidthMax);
+	return _st.maximalWidth
+		? qMin(width() - getListLeft(), _st.maximalWidth)
+		: width() - getListLeft();
 }
 
 void PeerListWidget::preloadPhotos() {
 	int top = getListTop();
 	int preloadFor = (_visibleBottom - _visibleTop) * PreloadHeightsCount;
-	int from = floorclamp(_visibleTop - top, st::profileMemberHeight, 0, _items.size());
-	int to = ceilclamp(_visibleBottom + preloadFor - top, st::profileMemberHeight, 0, _items.size());
+	int from = floorclamp(_visibleTop - top, _st.height, 0, _items.size());
+	int to = ceilclamp(_visibleBottom + preloadFor - top, _st.height, 0, _items.size());
 	for (int i = from; i < to; ++i) {
 		_items[i]->peer->loadUserpic();
 	}

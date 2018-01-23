@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "ui/countryinput.h"
 
@@ -289,17 +276,17 @@ CountrySelectBox::Inner::Inner(QWidget *parent) : TWidget(parent)
 			countriesAll.push_back(ins);
 		}
 
-		QStringList namesList = QString::fromUtf8(ins->name).toLower().split(QRegularExpression("[\\s\\-]"), QString::SkipEmptyParts);
-		CountryNames &names(countriesNames[i]);
+		auto namesList = QString::fromUtf8(ins->name).toLower().split(QRegularExpression("[\\s\\-]"), QString::SkipEmptyParts);
+		auto &names = countriesNames[i];
 		int l = namesList.size();
 		names.resize(0);
 		names.reserve(l);
 		for (int j = 0, l = namesList.size(); j < l; ++j) {
-			QString name = namesList[j].trimmed();
+			auto name = namesList[j].trimmed();
 			if (!name.length()) continue;
 
-			QChar ch = name[0];
-			CountriesIds &v(countriesByLetter[ch]);
+			auto ch = name[0];
+			auto &v = countriesByLetter[ch];
 			if (v.isEmpty() || v.back() != i) {
 				v.push_back(i);
 			}

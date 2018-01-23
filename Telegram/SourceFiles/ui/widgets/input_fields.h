@@ -1,25 +1,13 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include "ui/rp_widget.h"
 #include "styles/style_widgets.h"
 
 class UserData;
@@ -141,7 +129,10 @@ protected:
 	void dropEvent(QDropEvent *e) override;
 	void contextMenuEvent(QContextMenuEvent *e) override;
 
-	virtual void correctValue(const QString &was, QString &now, TagList &nowTags) {
+	virtual void correctValue(
+		const QString &was,
+		QString &now,
+		TagList &nowTags) {
 	}
 
 	void insertEmoji(EmojiPtr emoji, QTextCursor c);
@@ -237,7 +228,11 @@ class FlatInput : public TWidgetHelper<QLineEdit>, private base::Subscriber {
 	Q_OBJECT
 
 public:
-	FlatInput(QWidget *parent, const style::FlatInput &st, base::lambda<QString()> placeholderFactory = base::lambda<QString()>(), const QString &val = QString());
+	FlatInput(
+		QWidget *parent,
+		const style::FlatInput &st,
+		base::lambda<QString()> placeholderFactory = nullptr,
+		const QString &val = QString());
 
 	void updatePlaceholder();
 	void setPlaceholder(base::lambda<QString()> placeholderFactory);
@@ -316,11 +311,15 @@ enum class CtrlEnterSubmit {
 	Both,
 };
 
-class InputArea : public TWidget, private base::Subscriber {
+class InputArea : public RpWidget, private base::Subscriber {
 	Q_OBJECT
 
 public:
-	InputArea(QWidget *parent, const style::InputField &st, base::lambda<QString()> placeholderFactory = base::lambda<QString()>(), const QString &val = QString());
+	InputArea(
+		QWidget *parent,
+		const style::InputField &st,
+		base::lambda<QString()> placeholderFactory = base::lambda<QString()>(),
+		const QString &val = QString());
 
 	void showError();
 
@@ -333,7 +332,7 @@ public:
 	}
 	void setPlaceholder(base::lambda<QString()> placeholderFactory);
 	void setDisplayFocused(bool focused);
-	void finishAnimations();
+	void finishAnimating();
 	void setFocusFast() {
 		setDisplayFocused(true);
 		setFocus();
@@ -373,6 +372,17 @@ public:
 	}
 	void clearFocus() {
 		_inner->clearFocus();
+	}
+
+	enum class MimeAction {
+		Check,
+		Insert,
+	};
+	using MimeDataHook = base::lambda<bool(
+		not_null<const QMimeData*> data,
+		MimeAction action)>;
+	void setMimeDataHook(MimeDataHook hook) {
+		_mimeDataHook = std::move(hook);
 	}
 
 private slots:
@@ -429,6 +439,8 @@ private:
 		void keyPressEvent(QKeyEvent *e) override;
 		void contextMenuEvent(QContextMenuEvent *e) override;
 
+		bool canInsertFromMimeData(const QMimeData *source) const override;
+		void insertFromMimeData(const QMimeData *source) override;
 		QMimeData *createMimeDataFromSelection() const override;
 
 	private:
@@ -492,10 +504,11 @@ private:
 	QPoint _touchStart;
 
 	bool _correcting = false;
+	MimeDataHook _mimeDataHook;
 
 };
 
-class InputField : public TWidget, private base::Subscriber {
+class InputField : public RpWidget, private base::Subscriber {
 	Q_OBJECT
 
 public:
@@ -513,7 +526,7 @@ public:
 	void setPlaceholder(base::lambda<QString()> placeholderFactory);
 	void setPlaceholderHidden(bool forcePlaceholderHidden);
 	void setDisplayFocused(bool focused);
-	void finishAnimations();
+	void finishAnimating();
 	void setFocusFast() {
 		setDisplayFocused(true);
 		setFocus();
@@ -641,10 +654,10 @@ private:
 
 	const style::InputField &_st;
 
+	std::unique_ptr<Inner> _inner;
+
 	int _maxLength = -1;
 	bool _forcePlaceholderHidden = false;
-
-	object_ptr<Inner> _inner;
 
 	QString _oldtext;
 
@@ -679,9 +692,12 @@ private:
 	bool _correcting = false;
 };
 
-class MaskedInputField : public TWidgetHelper<QLineEdit>, private base::Subscriber {
+class MaskedInputField
+	: public RpWidgetWrap<QLineEdit>
+	, private base::Subscriber {
 	Q_OBJECT
 
+	using Parent = RpWidgetWrap<QLineEdit>;
 public:
 	MaskedInputField(QWidget *parent, const style::InputField &st, base::lambda<QString()> placeholderFactory = base::lambda<QString()>(), const QString &val = QString());
 
@@ -699,7 +715,7 @@ public:
 	void setPlaceholder(base::lambda<QString()> placeholderFactory);
 	void setPlaceholderHidden(bool forcePlaceholderHidden);
 	void setDisplayFocused(bool focused);
-	void finishAnimations();
+	void finishAnimating();
 	void setFocusFast() {
 		setDisplayFocused(true);
 		setFocus();
@@ -740,7 +756,7 @@ protected:
 	void startBorderAnimation();
 	void startPlaceholderAnimation();
 
-	bool event(QEvent *e) override;
+	bool eventHook(QEvent *e) override;
 	void touchEvent(QTouchEvent *e);
 	void paintEvent(QPaintEvent *e) override;
 	void focusInEvent(QFocusEvent *e) override;
@@ -750,7 +766,11 @@ protected:
 	void contextMenuEvent(QContextMenuEvent *e) override;
 	void inputMethodEvent(QInputMethodEvent *e) override;
 
-	virtual void correctValue(const QString &was, int wasCursor, QString &now, int &nowCursor) {
+	virtual void correctValue(
+		const QString &was,
+		int wasCursor,
+		QString &now,
+		int &nowCursor) {
 	}
 	void setCorrectedText(QString &now, int &nowCursor, const QString &newText, int newPos);
 
@@ -827,7 +847,11 @@ signals:
 	void addedToNumber(const QString &added);
 
 protected:
-	void correctValue(const QString &was, int wasCursor, QString &now, int &nowCursor) override;
+	void correctValue(
+		const QString &was,
+		int wasCursor,
+		QString &now,
+		int &nowCursor) override;
 
 private:
 	bool _nosignal;
@@ -850,7 +874,11 @@ signals:
 protected:
 	void keyPressEvent(QKeyEvent *e) override;
 
-	void correctValue(const QString &was, int wasCursor, QString &now, int &nowCursor) override;
+	void correctValue(
+		const QString &was,
+		int wasCursor,
+		QString &now,
+		int &nowCursor) override;
 	void paintAdditionalPlaceholder(Painter &p, TimeMs ms) override;
 
 private:
@@ -870,7 +898,11 @@ public:
 	PortInput(QWidget *parent, const style::InputField &st, base::lambda<QString()> placeholderFactory, const QString &val);
 
 protected:
-	void correctValue(const QString &was, int wasCursor, QString &now, int &nowCursor) override;
+	void correctValue(
+		const QString &was,
+		int wasCursor,
+		QString &now,
+		int &nowCursor) override;
 
 };
 
@@ -881,7 +913,11 @@ public:
 	void setLinkPlaceholder(const QString &placeholder);
 
 protected:
-	void correctValue(const QString &was, int wasCursor, QString &now, int &nowCursor) override;
+	void correctValue(
+		const QString &was,
+		int wasCursor,
+		QString &now,
+		int &nowCursor) override;
 	void paintAdditionalPlaceholder(Painter &p, TimeMs ms) override;
 
 private:
@@ -898,7 +934,11 @@ public:
 protected:
 	void focusInEvent(QFocusEvent *e) override;
 
-	void correctValue(const QString &was, int wasCursor, QString &now, int &nowCursor) override;
+	void correctValue(
+		const QString &was,
+		int wasCursor,
+		QString &now,
+		int &nowCursor) override;
 	void paintAdditionalPlaceholder(Painter &p, TimeMs ms) override;
 
 private:

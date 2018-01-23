@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
@@ -35,7 +22,10 @@ namespace ChatHelpers {
 
 struct StickerIcon;
 
-class StickersListWidget : public TabbedSelector::Inner, private base::Subscriber, private MTP::Sender {
+class StickersListWidget
+	: public TabbedSelector::Inner
+	, private base::Subscriber
+	, private MTP::Sender {
 	Q_OBJECT
 
 public:
@@ -54,8 +44,6 @@ public:
 	void fillIcons(QList<StickerIcon> &icons);
 	bool preventAutoHide();
 
-	void setVisibleTopBottom(int visibleTop, int visibleBottom) override;
-
 	uint64 currentSet(int yOffset) const;
 
 	void installedLocally(uint64 setId);
@@ -65,6 +53,10 @@ public:
 	~StickersListWidget();
 
 protected:
+	void visibleTopBottomUpdated(
+		int visibleTop,
+		int visibleBottom) override;
+
 	void mousePressEvent(QMouseEvent *e) override;
 	void mouseReleaseEvent(QMouseEvent *e) override;
 	void mouseMoveEvent(QMouseEvent *e) override;
@@ -77,7 +69,7 @@ protected:
 	TabbedSelector::InnerFooter *getFooter() const override;
 	void processHideFinished() override;
 	void processPanelHideFinished() override;
-	int countHeight() override;
+	int countDesiredHeight(int newWidth) override;
 
 private slots:
 	void onSettings();
@@ -133,15 +125,22 @@ private:
 	};
 
 	struct Set {
-		Set(uint64 id, MTPDstickerSet::Flags flags, const QString &title, int32 hoversSize, const StickerPack &pack = StickerPack()) : id(id), flags(flags), title(title), pack(pack) {
-		}
+		Set(
+			uint64 id,
+			MTPDstickerSet::Flags flags,
+			const QString &title,
+			int hoversSize,
+			const Stickers::Pack &pack = Stickers::Pack());
+		Set(Set &&other);
+		Set &operator=(Set &&other);
+		~Set();
+
 		uint64 id;
 		MTPDstickerSet::Flags flags;
 		QString title;
-		StickerPack pack;
-		QSharedPointer<Ui::RippleAnimation> ripple;
+		Stickers::Pack pack;
+		std::unique_ptr<Ui::RippleAnimation> ripple;
 	};
-	using Sets = QList<Set>;
 
 	template <typename Callback>
 	bool enumerateSections(Callback callback) const;
@@ -162,11 +161,12 @@ private:
 		Hidden,
 	};
 	void refreshMegagroupStickers(GroupStickersPlace place);
+	void refreshSettingsVisibility();
 
 	void updateSelected();
 	void setSelected(OverState newSelected);
 	void setPressed(OverState newPressed);
-	QSharedPointer<Ui::RippleAnimation> createButtonRipple(int section);
+	std::unique_ptr<Ui::RippleAnimation> createButtonRipple(int section);
 	QPoint buttonRippleTopLeft(int section) const;
 
 	enum class ValidateIconAnimations {
@@ -176,10 +176,10 @@ private:
 	};
 	void validateSelectedIcon(ValidateIconAnimations animations);
 
-	Sets &shownSets() {
+	std::vector<Set> &shownSets() {
 		return (_section == Section::Featured) ? _featuredSets : _mySets;
 	}
-	const Sets &shownSets() const {
+	const std::vector<Set> &shownSets() const {
 		return (_section == Section::Featured) ? _featuredSets : _mySets;
 	}
 	int featuredRowHeight() const;
@@ -204,7 +204,10 @@ private:
 		Archived,
 		Installed,
 	};
-	void appendSet(Sets &to, uint64 setId, AppendSkip skip = AppendSkip::None);
+	void appendSet(
+		std::vector<Set> &to,
+		uint64 setId,
+		AppendSkip skip = AppendSkip::None);
 
 	void selectEmoji(EmojiPtr emoji);
 	int stickersLeft() const;
@@ -212,12 +215,14 @@ private:
 
 	void removeRecentSticker(int section, int index);
 	void removeFavedSticker(int section, int index);
+	void setColumnCount(int count);
+	void refreshFooterIcons();
 
 	ChannelData *_megagroupSet = nullptr;
-	Sets _mySets;
-	Sets _featuredSets;
-	OrderedSet<uint64> _installedLocallySets;
-	QList<bool> _custom;
+	std::vector<Set> _mySets;
+	std::vector<Set> _featuredSets;
+	base::flat_set<uint64> _installedLocallySets;
+	std::vector<bool> _custom;
 	base::flat_set<not_null<DocumentData*>> _favedStickersMap;
 
 	Section _section = Section::Stickers;
@@ -226,6 +231,9 @@ private:
 	uint64 _removingSetId = 0;
 
 	Footer *_footer = nullptr;
+	int _rowsLeft = 0;
+	int _columnCount = 1;
+	QSize _singleSize;
 
 	OverState _selected;
 	OverState _pressed;

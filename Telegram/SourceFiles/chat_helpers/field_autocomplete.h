@@ -1,26 +1,14 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
 #include "ui/twidget.h"
+#include "chat_helpers/stickers.h"
 
 namespace Ui {
 class ScrollArea;
@@ -104,9 +92,9 @@ private:
 	internal::MentionRows _mrows;
 	internal::HashtagRows _hrows;
 	internal::BotCommandRows _brows;
-	StickerPack _srows;
+	Stickers::Pack _srows;
 
-	void rowsUpdated(const internal::MentionRows &mrows, const internal::HashtagRows &hrows, const internal::BotCommandRows &brows, const StickerPack &srows, bool resetScroll);
+	void rowsUpdated(const internal::MentionRows &mrows, const internal::HashtagRows &hrows, const internal::BotCommandRows &brows, const Stickers::Pack &srows, bool resetScroll);
 
 	object_ptr<Ui::ScrollArea> _scroll;
 	QPointer<internal::FieldAutocompleteInner> _inner;
@@ -141,7 +129,7 @@ class FieldAutocompleteInner final : public TWidget, private base::Subscriber {
 	Q_OBJECT
 
 public:
-	FieldAutocompleteInner(FieldAutocomplete *parent, MentionRows *mrows, HashtagRows *hrows, BotCommandRows *brows, StickerPack *srows);
+	FieldAutocompleteInner(FieldAutocomplete *parent, MentionRows *mrows, HashtagRows *hrows, BotCommandRows *brows, Stickers::Pack *srows);
 
 	void clearSel(bool hidden = false);
 	bool moveSel(int key);
@@ -179,7 +167,7 @@ private:
 	MentionRows *_mrows;
 	HashtagRows *_hrows;
 	BotCommandRows *_brows;
-	StickerPack *_srows;
+	Stickers::Pack *_srows;
 	int32 _stickersPerRow, _recentInlineBotsInRows;
 	int32 _sel, _down;
 	bool _mouseSel;

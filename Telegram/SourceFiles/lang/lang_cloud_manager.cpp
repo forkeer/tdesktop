@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "lang/lang_cloud_manager.h"
 
@@ -177,7 +164,7 @@ bool CloudManager::showOfferSwitchBox() {
 		Ui::hideLayer();
 		changeIdAndReInitConnection(DefaultLanguageId());
 		Local::writeLangPack();
-	}), KeepOtherLayers);
+	}), LayerOption::KeepOther);
 	return true;
 }
 
@@ -236,7 +223,7 @@ void CloudManager::switchToLanguage(QString id) {
 			auto cancel = getValue(lng_cancel);
 			Ui::show(Box<ConfirmBox>(text, save, cancel, [this, id] {
 				performSwitchAndRestart(id);
-			}), KeepOtherLayers);
+			}), LayerOption::KeepOther);
 		}).send();
 	}
 }
@@ -244,7 +231,7 @@ void CloudManager::switchToLanguage(QString id) {
 void CloudManager::performSwitchToCustom() {
 	auto filter = qsl("Language files (*.strings)");
 	auto title = qsl("Choose language .strings file");
-	FileDialog::GetOpenPath(title, filter, [weak = base::make_weak_unique(this)](const FileDialog::OpenResult &result) {
+	FileDialog::GetOpenPath(title, filter, [weak = base::make_weak(this)](const FileDialog::OpenResult &result) {
 		if (!weak || result.paths.isEmpty()) {
 			return;
 		}
@@ -267,10 +254,12 @@ void CloudManager::performSwitchToCustom() {
 				Ui::show(Box<ConfirmBox>(text, save, cancel, [weak, filePath] {
 					weak->_langpack.switchToCustomFile(filePath);
 					App::restart();
-				}), KeepOtherLayers);
+				}), LayerOption::KeepOther);
 			}
 		} else {
-			Ui::show(Box<InformBox>("Custom lang failed :(\n\nError: " + loader.errors()), KeepOtherLayers);
+			Ui::show(
+				Box<InformBox>("Custom lang failed :(\n\nError: " + loader.errors()),
+				LayerOption::KeepOther);
 		}
 	});
 }

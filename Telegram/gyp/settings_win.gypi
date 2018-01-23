@@ -1,21 +1,8 @@
 # This file is part of Telegram Desktop,
-# the official desktop version of Telegram messaging app, see https://telegram.org
+# the official desktop application for the Telegram messaging service.
 #
-# Telegram Desktop is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# It is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
-#
-# In addition, as a special exception, the copyright holders give permission
-# to link the code of portions of this program with the OpenSSL library.
-#
-# Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-# Copyright (c) 2014 John Preston, https://desktop.telegram.org
+# For license and copyright information please follow this link:
+# https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 {
   'conditions': [
@@ -35,12 +22,13 @@
         'VCCLCompilerTool': {
           'ProgramDataBaseFileName': '$(OutDir)\\$(ProjectName).pdb',
           'DebugInformationFormat': '3',          # Program Database (/Zi)
+          'WarnAsError': 'true',
           'AdditionalOptions': [
             '/std:c++latest',
-            '/MP',   # Enable multi process build.
-            '/EHsc', # Catch C++ exceptions only, extern C functions never throw a C++ exception.
-            '/WX',   # Treat warnings as errors.
-            '/std:c++latest',
+            '/permissive-',
+            '/MP',     # Enable multi process build.
+            '/EHsc',   # Catch C++ exceptions only, extern C functions never throw a C++ exception.
+            '/w14834', # [[nodiscard]]
           ],
           'TreatWChar_tAsBuiltInType': 'false',
         },
@@ -107,6 +95,9 @@
               'GenerateDebugInformation': 'true',  # /DEBUG
               'OptimizeReferences': '2',
               'LinkTimeCodeGeneration': '1',       # /LTCG
+            },
+            'VCLibrarianTool': {
+              'LinkTimeCodeGeneration': 'true',    # /LTCG
             },
           },
         },

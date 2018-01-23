@@ -1,25 +1,13 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#ifndef TDESKTOP_DISABLE_GTK_INTEGRATION
 extern "C" {
 #undef signals
 #include <libappindicator/app-indicator.h>
@@ -31,6 +19,7 @@ extern "C" {
 #ifndef TDESKTOP_DISABLE_UNITY_INTEGRATION
 #include <unity/unity/unity.h>
 #endif // !TDESKTOP_DISABLE_UNITY_INTEGRATION
+#endif // !TDESKTOP_DISABLE_GTK_INTEGRATION
 
 namespace Platform {
 namespace Libs {
@@ -52,6 +41,7 @@ bool load(QLibrary &lib, const char *name, Function &func) {
 	return false;
 }
 
+#ifndef TDESKTOP_DISABLE_GTK_INTEGRATION
 typedef gboolean (*f_gtk_init_check)(int *argc, char ***argv);
 extern f_gtk_init_check gtk_init_check;
 
@@ -381,6 +371,7 @@ extern f_unity_launcher_entry_set_count_visible unity_launcher_entry_set_count_v
 typedef UnityLauncherEntry* (*f_unity_launcher_entry_get_for_desktop_id)(const gchar* desktop_id);
 extern f_unity_launcher_entry_get_for_desktop_id unity_launcher_entry_get_for_desktop_id;
 #endif // !TDESKTOP_DISABLE_UNITY_INTEGRATION
+#endif // !TDESKTOP_DISABLE_GTK_INTEGRATION
 
 } // namespace Libs
 } // namespace Platform

@@ -1,28 +1,16 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
 #include "history/history_admin_log_item.h"
 #include "history/history_admin_log_section.h"
 #include "ui/widgets/tooltip.h"
+#include "ui/rp_widget.h"
 #include "mtproto/sender.h"
 #include "base/timer.h"
 
@@ -38,9 +26,16 @@ namespace AdminLog {
 
 class SectionMemento;
 
-class InnerWidget final : public TWidget, public Ui::AbstractTooltipShower, private MTP::Sender, private base::Subscriber {
+class InnerWidget final
+	: public Ui::RpWidget
+	, public Ui::AbstractTooltipShower
+	, private MTP::Sender
+	, private base::Subscriber {
 public:
-	InnerWidget(QWidget *parent, not_null<Window::Controller*> controller, not_null<ChannelData*> channel);
+	InnerWidget(
+		QWidget *parent,
+		not_null<Window::Controller*> controller,
+		not_null<ChannelData*> channel);
 
 	base::Observable<void> showSearchSignal;
 	base::Observable<int> scrollToSignal;
@@ -49,9 +44,6 @@ public:
 	not_null<ChannelData*> channel() const {
 		return _channel;
 	}
-
-	// Updates the area that is visible inside the scroll container.
-	void setVisibleTopBottom(int visibleTop, int visibleBottom) override;
 
 	// Set the correct scroll position after being resized.
 	void restoreScrollPosition();
@@ -76,6 +68,10 @@ public:
 	~InnerWidget();
 
 protected:
+	void visibleTopBottomUpdated(
+		int visibleTop,
+		int visibleBottom) override;
+
 	void paintEvent(QPaintEvent *e) override;
 	void keyPressEvent(QKeyEvent *e) override;
 	void mousePressEvent(QMouseEvent *e) override;

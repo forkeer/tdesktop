@@ -1,32 +1,13 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
 #include <type_traits>
-
-#if defined _MSC_VER && _MSC_VER < 1910
-#define FLAGS_CONSTEXPR
-#else // MSVS2015
-#define FLAGS_CONSTEXPR constexpr
-#endif // MSVS2015
 
 namespace base {
 
@@ -69,9 +50,11 @@ public:
 	constexpr flags() = default;
 	constexpr flags(details::flags_zero_helper) noexcept {
 	}
-	constexpr flags(Enum value) noexcept : _value(static_cast<Type>(value)) {
+	constexpr flags(Enum value) noexcept
+	: _value(static_cast<Type>(value)) {
 	}
-	explicit constexpr flags(Type value) noexcept : _value(value) {
+	static constexpr flags from_raw(Type value) noexcept {
+		return flags(static_cast<Enum>(value));
 	}
 
 	constexpr auto value() const noexcept {
@@ -81,40 +64,40 @@ public:
 		return value();
 	}
 
-	FLAGS_CONSTEXPR auto &operator|=(flags b) noexcept {
+	constexpr auto &operator|=(flags b) noexcept {
 		_value |= b.value();
 		return *this;
 	}
-	FLAGS_CONSTEXPR auto &operator&=(flags b) noexcept {
+	constexpr auto &operator&=(flags b) noexcept {
 		_value &= b.value();
 		return *this;
 	}
-	FLAGS_CONSTEXPR auto &operator^=(flags b) noexcept {
+	constexpr auto &operator^=(flags b) noexcept {
 		_value ^= b.value();
 		return *this;
 	}
 
-	FLAGS_CONSTEXPR auto operator~() const noexcept {
-		return flags(~value());
+	constexpr auto operator~() const noexcept {
+		return from_raw(~value());
 	}
 
-	FLAGS_CONSTEXPR auto operator|(flags b) const noexcept {
+	constexpr auto operator|(flags b) const noexcept {
 		return (flags(*this) |= b);
 	}
-	FLAGS_CONSTEXPR auto operator&(flags b) const noexcept {
+	constexpr auto operator&(flags b) const noexcept {
 		return (flags(*this) &= b);
 	}
-	FLAGS_CONSTEXPR auto operator^(flags b) const noexcept {
+	constexpr auto operator^(flags b) const noexcept {
 		return (flags(*this) ^= b);
 	}
 
-	FLAGS_CONSTEXPR auto operator|(Enum b) const noexcept {
+	constexpr auto operator|(Enum b) const noexcept {
 		return (flags(*this) |= b);
 	}
-	FLAGS_CONSTEXPR auto operator&(Enum b) const noexcept {
+	constexpr auto operator&(Enum b) const noexcept {
 		return (flags(*this) &= b);
 	}
-	FLAGS_CONSTEXPR auto operator^(Enum b) const noexcept {
+	constexpr auto operator^(Enum b) const noexcept {
 		return (flags(*this) ^= b);
 	}
 
@@ -295,8 +278,6 @@ inline constexpr auto operator>=(ExtendedEnum a, flags<extended_flags_t<Extended
 }
 
 } // namespace base
-
-#undef FLAGS_CONSTEXPR
 
 template <typename Enum,
 	typename = std::enable_if_t<std::is_enum<Enum>::value>,

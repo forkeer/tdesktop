@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "platform/linux/file_utilities_linux.h"
 
@@ -62,7 +49,7 @@ QByteArray EscapeShell(const QByteArray &content) {
 } // namespace internal
 
 void UnsafeShowInFolder(const QString &filepath) {
-	Ui::hideLayer(true); // Hide mediaview to make other apps visible.
+	Ui::hideLayer(anim::type::instant); // Hide mediaview to make other apps visible.
 
 	auto absolutePath = QFileInfo(filepath).absoluteFilePath();
 	QProcess process;
@@ -95,6 +82,7 @@ void UnsafeShowInFolder(const QString &filepath) {
 
 namespace FileDialog {
 namespace {
+#ifndef TDESKTOP_DISABLE_GTK_INTEGRATION
 
 // GTK file chooser image preview: thanks to Chromium
 
@@ -105,9 +93,11 @@ namespace {
 // be preserved.
 constexpr auto kPreviewWidth = 256;
 constexpr auto kPreviewHeight = 512;
+#endif // !TDESKTOP_DISABLE_GTK_INTEGRATION
 
 using Type = ::FileDialog::internal::Type;
 
+#ifndef TDESKTOP_DISABLE_GTK_INTEGRATION
 bool NativeSupported() {
 	return Platform::internal::GdkHelperLoaded()
 		&& (Libs::gtk_widget_hide_on_delete != nullptr)
@@ -191,16 +181,20 @@ bool GetNative(QStringList &files, QByteArray &remoteContent, const QString &cap
 	remoteContent = QByteArray();
 	return false;
 }
+#endif // !TDESKTOP_DISABLE_GTK_INTEGRATION
 
 } // namespace
 
 bool Get(QStringList &files, QByteArray &remoteContent, const QString &caption, const QString &filter, Type type, QString startFile) {
+#ifndef TDESKTOP_DISABLE_GTK_INTEGRATION
 	if (NativeSupported()) {
 		return GetNative(files, remoteContent, caption, filter, type, startFile);
 	}
+#endif // !TDESKTOP_DISABLE_GTK_INTEGRATION
 	return ::FileDialog::internal::GetDefault(files, remoteContent, caption, filter, type, startFile);
 }
 
+#ifndef TDESKTOP_DISABLE_GTK_INTEGRATION
 namespace internal {
 
 QGtkDialog::QGtkDialog(GtkWidget *gtkWidget) : gtkWidget(gtkWidget) {
@@ -302,6 +296,7 @@ void QGtkDialog::onParentWindowDestroyed() {
 	// The Gtk*DialogHelper classes own this object. Make sure the parent doesn't delete it.
 	setParent(nullptr);
 }
+#endif // !TDESKTOP_DISABLE_GTK_INTEGRATION
 
 namespace {
 
@@ -321,6 +316,7 @@ QStringList cleanFilterList(const QString &filter) {
 
 } // namespace
 
+#ifndef TDESKTOP_DISABLE_GTK_INTEGRATION
 GtkFileDialog::GtkFileDialog(QWidget *parent, const QString &caption, const QString &directory, const QString &filter) : QDialog(parent)
 , _windowTitle(caption)
 , _initialDirectory(directory) {
@@ -624,5 +620,6 @@ void GtkFileDialog::setNameFilters(const QStringList &filters) {
 }
 
 } // namespace internal
+#endif // !TDESKTOP_DISABLE_GTK_INTEGRATION
 } // namespace FileDialog
 } // namespace Platform

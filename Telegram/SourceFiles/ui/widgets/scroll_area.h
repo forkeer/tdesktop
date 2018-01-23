@@ -1,25 +1,14 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include <rpl/event_stream.h>
+#include "ui/rp_widget.h"
 #include "styles/style_widgets.h"
 
 namespace Ui {
@@ -32,21 +21,29 @@ enum class TouchScrollState {
 
 class ScrollArea;
 
+struct ScrollToRequest {
+	ScrollToRequest(int ymin, int ymax)
+	: ymin(ymin)
+	, ymax(ymax) {
+	}
+
+	int ymin = 0;
+	int ymax = 0;
+
+};
+
 class ScrollShadow : public QWidget {
 	Q_OBJECT
 
 public:
-
 	ScrollShadow(ScrollArea *parent, const style::ScrollArea *st);
 
 	void paintEvent(QPaintEvent *e);
 
 public slots:
-
 	void changeVisibility(bool shown);
 
 private:
-
 	const style::ScrollArea *_st;
 
 };
@@ -112,11 +109,11 @@ private:
 	QRect _bar;
 };
 
-class SplittedWidget : public TWidget {
+class SplittedWidget : public Ui::RpWidget {
 	Q_OBJECT
 
 public:
-	SplittedWidget(QWidget *parent) : TWidget(parent) {
+	SplittedWidget(QWidget *parent) : RpWidget(parent) {
 		setAttribute(Qt::WA_OpaquePaintEvent);
 	}
 	void setHeight(int32 newHeight) {
@@ -170,7 +167,7 @@ private:
 };
 
 class SplittedWidgetOther;
-class ScrollArea : public TWidgetHelper<QScrollArea> {
+class ScrollArea : public Ui::RpWidgetWrap<QScrollArea> {
 	Q_OBJECT
 
 public:
@@ -203,6 +200,13 @@ public:
 
 	bool viewportEvent(QEvent *e) override;
 	void keyPressEvent(QKeyEvent *e) override;
+
+	auto scrollTopValue() const {
+		return _scrollTopUpdated.events_starting_with(scrollTop());
+	}
+
+	void scrollTo(ScrollToRequest request);
+	void scrollToWidget(not_null<QWidget*> widget);
 
 protected:
 	bool eventFilter(QObject *obj, QEvent *e) override;
@@ -282,6 +286,8 @@ private:
 	object_ptr<SplittedWidgetOther> _other = { nullptr };
 
 	object_ptr<TWidget> _widget = { nullptr };
+
+	rpl::event_stream<int> _scrollTopUpdated;
 
 };
 

@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
@@ -55,8 +42,7 @@ private:
 
 class BigNum {
 public:
-	BigNum() {
-		BN_init(raw());
+	BigNum() : _data(BN_new()) {
 	}
 	BigNum(const BigNum &other) : BigNum() {
 		*this = other;
@@ -84,11 +70,18 @@ public:
 		}
 	}
 	void setBytes(base::const_byte_span bytes) {
-		if (!BN_bin2bn(reinterpret_cast<const unsigned char*>(bytes.data()), bytes.size(), raw())) {
+		if (!BN_bin2bn(
+				reinterpret_cast<const unsigned char*>(bytes.data()),
+				bytes.size(),
+				raw())) {
 			_failed = true;
 		}
 	}
-	void setModExp(const BigNum &a, const BigNum &p, const BigNum &m, const Context &context = Context()) {
+	void setModExp(
+			const BigNum &a,
+			const BigNum &p,
+			const BigNum &m,
+			const Context &context = Context()) {
 		if (a.failed() || p.failed() || m.failed()) {
 			_failed = true;
 		} else if (a.isNegative() || p.isNegative() || m.isNegative()) {
@@ -135,7 +128,11 @@ public:
 			return false;
 		}
 		constexpr auto kMillerRabinIterationCount = 30;
-		auto result = BN_is_prime_ex(raw(), kMillerRabinIterationCount, context.raw(), NULL);
+		auto result = BN_is_prime_ex(
+			raw(),
+			kMillerRabinIterationCount,
+			context.raw(),
+			NULL);
 		if (result == 1) {
 			return true;
 		} else if (result != 0) {
@@ -170,16 +167,21 @@ public:
 		}
 		auto length = BN_num_bytes(raw());
 		auto result = base::byte_vector(length, gsl::byte());
-		auto resultSize = BN_bn2bin(raw(), reinterpret_cast<unsigned char*>(result.data()));
+		auto resultSize = BN_bn2bin(
+			raw(),
+			reinterpret_cast<unsigned char*>(result.data()));
 		Assert(resultSize == length);
 		return result;
 	}
 
 	BIGNUM *raw() {
-		return &_data;
+		return _data;
 	}
 	const BIGNUM *raw() const {
-		return &_data;
+		return _data;
+	}
+	BIGNUM *takeRaw() {
+		return base::take(_data);
 	}
 
 	bool failed() const {
@@ -193,7 +195,7 @@ public:
 	}
 
 private:
-	BIGNUM _data;
+	BIGNUM *_data = nullptr;
 	mutable bool _failed = false;
 
 };

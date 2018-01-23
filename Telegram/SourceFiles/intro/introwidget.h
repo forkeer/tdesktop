@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
@@ -30,7 +17,7 @@ class SlideAnimation;
 class CrossFadeAnimation;
 class FlatLabel;
 template <typename Widget>
-class WidgetFadeWrap;
+class FadeWrap;
 } // namespace Ui
 
 namespace Intro {
@@ -147,7 +134,7 @@ public:
 		Data *getData() const {
 			return _data;
 		}
-		void finish(const MTPUser &user, QImage photo = QImage());
+		void finish(const MTPUser &user, QImage &&photo = QImage());
 
 		void goBack() {
 			if (_goCallback) _goCallback(nullptr, Direction::Back);
@@ -198,13 +185,13 @@ public:
 
 		object_ptr<Ui::FlatLabel> _title;
 		base::lambda<QString()> _titleTextFactory;
-		object_ptr<Ui::WidgetFadeWrap<Ui::FlatLabel>> _description;
+		object_ptr<Ui::FadeWrap<Ui::FlatLabel>> _description;
 		base::lambda<QString()> _descriptionTextFactory;
 
 		bool _errorCentered = false;
 		bool _errorBelowLink = false;
 		base::lambda<QString()> _errorTextFactory;
-		object_ptr<Ui::WidgetFadeWrap<Ui::FlatLabel>> _error = { nullptr };
+		object_ptr<Ui::FadeWrap<Ui::FlatLabel>> _error = { nullptr };
 
 		Animation _a_show;
 		CoverAnimation _coverAnimation;
@@ -253,13 +240,13 @@ private:
 	int _nextTopFrom = 0;
 	int _controlsTopFrom = 0;
 
-	object_ptr<Ui::WidgetFadeWrap<Ui::IconButton>> _back;
-	object_ptr<Ui::WidgetFadeWrap<Ui::RoundButton>> _update = { nullptr };
-	object_ptr<Ui::WidgetFadeWrap<Ui::RoundButton>> _settings;
+	object_ptr<Ui::FadeWrap<Ui::IconButton>> _back;
+	object_ptr<Ui::FadeWrap<Ui::RoundButton>> _update = { nullptr };
+	object_ptr<Ui::FadeWrap<Ui::RoundButton>> _settings;
 
 	object_ptr<Ui::RoundButton> _next;
-	object_ptr<Ui::WidgetFadeWrap<Ui::LinkButton>> _changeLanguage = { nullptr };
-	object_ptr<Ui::WidgetFadeWrap<Ui::RoundButton>> _resetAccount = { nullptr };
+	object_ptr<Ui::FadeWrap<Ui::LinkButton>> _changeLanguage = { nullptr };
+	object_ptr<Ui::FadeWrap<Ui::RoundButton>> _resetAccount = { nullptr };
 
 	mtpRequestId _resetRequest = 0;
 

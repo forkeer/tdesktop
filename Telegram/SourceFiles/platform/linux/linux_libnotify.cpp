@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "platform/linux/linux_libnotify.h"
 
@@ -44,6 +31,7 @@ bool loadLibrary(QLibrary &lib, const char *name, int version) {
 
 } // namespace
 
+#ifndef TDESKTOP_DISABLE_GTK_INTEGRATION
 f_notify_init notify_init = nullptr;
 f_notify_uninit notify_uninit = nullptr;
 f_notify_is_initted notify_is_initted = nullptr;
@@ -116,6 +104,7 @@ void startLibNotify() {
 	load(lib_notify, "notify_notification_close", notify_notification_close);
 	load(lib_notify, "notify_notification_get_closed_reason", notify_notification_get_closed_reason);
 }
+#endif // !TDESKTOP_DISABLE_GTK_INTEGRATION
 
 } // namespace Libs
 } // namespace Platform

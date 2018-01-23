@@ -1,27 +1,25 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #define CATCH_CONFIG_RUNNER
 #include "catch.hpp"
 #include "reporters/catch_reporter_compact.hpp"
 #include <QFile>
+
+namespace base {
+namespace assertion {
+
+// For Assert() / Expects() / Ensures() / Unexpected() to work.
+void log(const char *message, const char *file, int line) {
+	std::cout << message << " (" << file << ":" << line << ")" << std::endl;
+}
+
+} // namespace assertion
+} // namespace base
 
 namespace Catch {
 
@@ -82,15 +80,20 @@ namespace Catch {
 } // end namespace Catch
 
 int main(int argc, const char *argv[]) {
-	const char *catch_argv[] = { argv[0], "-r", "minimal" };
+	auto touchFile = QString();
+	for (auto i = 0; i != argc; ++i) {
+		if (argv[i] == QString("--touch") && i + 1 != argc) {
+			touchFile = QFile::decodeName(argv[++i]);
+		}
+	}
+	const char *catch_argv[] = {
+		argv[0],
+		touchFile.isEmpty() ? "-b" : "-r",
+		touchFile.isEmpty() ? "-b" : "minimal" };
 	constexpr auto catch_argc = sizeof(catch_argv) / sizeof(catch_argv[0]);
 	auto result = Catch::Session().run(catch_argc, catch_argv);
-	if (result == 0) {
-		for (auto i = 0; i != argc; ++i) {
-			if (argv[i] == QString("--touch") && i + 1 != argc) {
-				QFile(QFile::decodeName(argv[++i])).open(QIODevice::WriteOnly);
-			}
-		}
+	if (result == 0 && !touchFile.isEmpty()) {
+		QFile(touchFile).open(QIODevice::WriteOnly);
 	}
 	return (result < 0xff ? result : 0xff);
 }

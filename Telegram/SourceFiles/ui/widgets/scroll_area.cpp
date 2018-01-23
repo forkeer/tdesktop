@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "ui/widgets/scroll_area.h"
 
@@ -319,7 +306,8 @@ void SplittedWidgetOther::paintEvent(QPaintEvent *e) {
 	}
 }
 
-ScrollArea::ScrollArea(QWidget *parent, const style::ScrollArea &st, bool handleTouch) : TWidgetHelper<QScrollArea>(parent)
+ScrollArea::ScrollArea(QWidget *parent, const style::ScrollArea &st, bool handleTouch)
+: RpWidgetWrap<QScrollArea>(parent)
 , _st(st)
 , _horizontalBar(this, false, &_st)
 , _verticalBar(this, true, &_st)
@@ -358,7 +346,9 @@ void ScrollArea::touchDeaccelerate(int32 elapsed) {
 }
 
 void ScrollArea::onScrolled() {
-	myEnsureResized(widget());
+	if (const auto inner = widget()) {
+		SendPendingMoveResizeEvents(inner);
+	}
 
 	bool em = false;
 	int horizontalValue = horizontalScrollBar()->value();
@@ -383,6 +373,7 @@ void ScrollArea::onScrolled() {
 				_verticalBar->hideTimeout(_st.hiding);
 			}
 			em = true;
+			_scrollTopUpdated.fire_copy(_verticalValue);
 		}
 	}
 	if (em) {
@@ -524,7 +515,7 @@ void ScrollArea::touchEvent(QTouchEvent *e) {
 	}
 
 	switch (e->type()) {
-	case QEvent::TouchBegin:
+	case QEvent::TouchBegin: {
 		if (_touchPress || e->touchPoints().isEmpty()) return;
 		_touchPress = true;
 		if (_touchScrollState == TouchScrollState::Auto) {
@@ -539,9 +530,9 @@ void ScrollArea::touchEvent(QTouchEvent *e) {
 		}
 		_touchStart = _touchPrevPos = _touchPos;
 		_touchRightButton = false;
-		break;
+	} break;
 
-	case QEvent::TouchUpdate:
+	case QEvent::TouchUpdate: {
 		if (!_touchPress) return;
 		if (!_touchScroll && (_touchPos - _touchStart).manhattanLength() >= QApplication::startDragDistance()) {
 			_touchTimer.stop();
@@ -559,11 +550,12 @@ void ScrollArea::touchEvent(QTouchEvent *e) {
 				}
 			}
 		}
-		break;
+	} break;
 
-	case QEvent::TouchEnd:
+	case QEvent::TouchEnd: {
 		if (!_touchPress) return;
 		_touchPress = false;
+		auto weak = make_weak(this);
 		if (_touchScroll) {
 			if (_touchScrollState == TouchScrollState::Manual) {
 				_touchScrollState = TouchScrollState::Auto;
@@ -582,11 +574,11 @@ void ScrollArea::touchEvent(QTouchEvent *e) {
 		} else if (window()) { // one short tap -- like left mouse click, one long tap -- like right mouse click
 			Qt::MouseButton btn(_touchRightButton ? Qt::RightButton : Qt::LeftButton);
 
-			sendSynteticMouseEvent(this, QEvent::MouseMove, Qt::NoButton, _touchStart);
-			sendSynteticMouseEvent(this, QEvent::MouseButtonPress, btn, _touchStart);
-			sendSynteticMouseEvent(this, QEvent::MouseButtonRelease, btn, _touchStart);
+			if (weak) sendSynteticMouseEvent(this, QEvent::MouseMove, Qt::NoButton, _touchStart);
+			if (weak) sendSynteticMouseEvent(this, QEvent::MouseButtonPress, btn, _touchStart);
+			if (weak) sendSynteticMouseEvent(this, QEvent::MouseButtonRelease, btn, _touchStart);
 
-			if (_touchRightButton) {
+			if (weak && _touchRightButton) {
 				auto windowHandle = window()->windowHandle();
 				auto localPoint = windowHandle->mapFromGlobal(_touchStart);
 				QContextMenuEvent ev(QContextMenuEvent::Mouse, localPoint, _touchStart, QGuiApplication::keyboardModifiers());
@@ -594,16 +586,18 @@ void ScrollArea::touchEvent(QTouchEvent *e) {
 				QGuiApplication::sendEvent(windowHandle, &ev);
 			}
 		}
-		_touchTimer.stop();
-		_touchRightButton = false;
-		break;
+		if (weak) {
+			_touchTimer.stop();
+			_touchRightButton = false;
+		}
+	} break;
 
-	case QEvent::TouchCancel:
+	case QEvent::TouchCancel: {
 		_touchPress = false;
 		_touchScroll = false;
 		_touchScrollState = TouchScrollState::Manual;
 		_touchTimer.stop();
-		break;
+	} break;
 	}
 }
 
@@ -683,9 +677,25 @@ void ScrollArea::leaveEventHook(QEvent *e) {
 	return QScrollArea::leaveEvent(e);
 }
 
+void ScrollArea::scrollTo(ScrollToRequest request) {
+	scrollToY(request.ymin, request.ymax);
+}
+
+void ScrollArea::scrollToWidget(not_null<QWidget*> widget) {
+	if (auto local = this->widget()) {
+		auto globalPosition = widget->mapToGlobal(QPoint(0, 0));
+		auto localPosition = local->mapFromGlobal(globalPosition);
+		auto localTop = localPosition.y();
+		auto localBottom = localTop + widget->height();
+		scrollToY(localTop, localBottom);
+	}
+}
+
 void ScrollArea::scrollToY(int toTop, int toBottom) {
-	myEnsureResized(widget());
-	myEnsureResized(this);
+	if (const auto inner = widget()) {
+		SendPendingMoveResizeEvents(inner);
+	}
+	SendPendingMoveResizeEvents(this);
 
 	int toMin = 0, toMax = scrollTopMax();
 	if (toTop < toMin) {

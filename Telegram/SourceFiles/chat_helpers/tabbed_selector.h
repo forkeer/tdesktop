@@ -1,26 +1,13 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
-#include "ui/twidget.h"
+#include "ui/rp_widget.h"
 #include "ui/effects/panel_animation.h"
 #include "mtproto/sender.h"
 #include "auth_session.h"
@@ -52,7 +39,7 @@ class EmojiListWidget;
 class StickersListWidget;
 class GifsListWidget;
 
-class TabbedSelector : public TWidget, private base::Subscriber {
+class TabbedSelector : public Ui::RpWidget, private base::Subscriber {
 	Q_OBJECT
 
 public:
@@ -60,7 +47,6 @@ public:
 
 	void setRoundRadius(int radius);
 	void refreshStickers();
-	void stickersInstalled(uint64 setId);
 	void showMegagroupSet(ChannelData *megagroup);
 	void setCurrentPeer(PeerData *peer);
 
@@ -86,7 +72,11 @@ public:
 
 	// Float player interface.
 	bool wheelEventFromFloatPlayer(QEvent *e);
-	QRect rectForFloatPlayer();
+	QRect rectForFloatPlayer() const;
+
+	auto showRequests() const {
+		return _showRequests.events();
+	}
 
 	~TabbedSelector();
 
@@ -152,6 +142,7 @@ private:
 
 	void checkRestrictedPeer();
 	bool isRestrictedView();
+	void updateRestrictedLabelGeometry();
 
 	QImage grabForAnimation();
 
@@ -199,15 +190,15 @@ private:
 	base::lambda<void(SelectorTab)> _afterShownCallback;
 	base::lambda<void(SelectorTab)> _beforeHidingCallback;
 
+	rpl::event_stream<> _showRequests;
+
 };
 
-class TabbedSelector::Inner : public TWidget {
+class TabbedSelector::Inner : public Ui::RpWidget {
 	Q_OBJECT
 
 public:
 	Inner(QWidget *parent, not_null<Window::Controller*> controller);
-
-	void setVisibleTopBottom(int visibleTop, int visibleBottom) override;
 
 	int getVisibleTop() const {
 		return _visibleTop;
@@ -215,6 +206,7 @@ public:
 	int getVisibleBottom() const {
 		return _visibleBottom;
 	}
+	void setMinimalHeight(int newWidth, int newMinimalHeight);
 
 	virtual void refreshRecent() = 0;
 	virtual void preloadImages() {
@@ -235,11 +227,17 @@ signals:
 	void disableScroll(bool disabled);
 
 protected:
+	void visibleTopBottomUpdated(
+		int visibleTop,
+		int visibleBottom) override;
+	int minimalHeight() const;
+	int resizeGetHeight(int newWidth) override final;
+
 	not_null<Window::Controller*> controller() const {
 		return _controller;
 	}
 
-	virtual int countHeight() = 0;
+	virtual int countDesiredHeight(int newWidth) = 0;
 	virtual InnerFooter *getFooter() const = 0;
 	virtual void processHideFinished() {
 	}
@@ -251,6 +249,7 @@ private:
 
 	int _visibleTop = 0;
 	int _visibleBottom = 0;
+	int _minimalHeight = 0;
 
 };
 

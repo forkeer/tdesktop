@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/settings_advanced_widget.h"
 
@@ -28,7 +15,7 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 #include "boxes/local_storage_box.h"
 #include "mainwindow.h"
 #include "ui/widgets/buttons.h"
-#include "ui/effects/widget_slide_wrap.h"
+#include "ui/wrap/slide_wrap.h"
 #include "storage/localstorage.h"
 #include "window/themes/window_theme.h"
 
@@ -62,39 +49,43 @@ void AdvancedWidget::createControls() {
 #endif // TDESKTOP_DISABLE_NETWORK_PROXY
 	})();
 	if (self()) {
-		addChildRow(_manageLocalStorage, marginLocalStorage, lang(lng_settings_manage_local_storage), SLOT(onManageLocalStorage()));
+		createChildRow(_manageLocalStorage, marginLocalStorage, lang(lng_settings_manage_local_storage), SLOT(onManageLocalStorage()));
 	}
 
 #ifndef TDESKTOP_DISABLE_NETWORK_PROXY
-	addChildRow(_connectionType, marginLarge, lang(lng_connection_type), lang(lng_connection_auto_connecting), LabeledLink::Type::Primary, SLOT(onConnectionType()));
+	createChildRow(_connectionType, marginLarge, lang(lng_connection_type), lang(lng_connection_auto_connecting), LabeledLink::Type::Primary, SLOT(onConnectionType()));
 	connectionTypeUpdated();
 #endif // !TDESKTOP_DISABLE_NETWORK_PROXY
 
 	if (self()) {
-		addChildRow(_askQuestion, marginSmall, lang(lng_settings_ask_question), SLOT(onAskQuestion()));
+		createChildRow(_askQuestion, marginSmall, lang(lng_settings_ask_question), SLOT(onAskQuestion()));
 	} else {
 		style::margins slidedPadding(0, marginLarge.bottom() / 2, 0, marginLarge.bottom() - (marginLarge.bottom() / 2));
-		addChildRow(_useDefaultTheme, marginLarge, slidedPadding, lang(lng_settings_bg_use_default), SLOT(onUseDefaultTheme()));
+		createChildRow(_useDefaultTheme, marginLarge, slidedPadding, lang(lng_settings_bg_use_default), SLOT(onUseDefaultTheme()));
 		if (!Window::Theme::IsNonDefaultUsed()) {
-			_useDefaultTheme->hideFast();
+			_useDefaultTheme->hide(anim::type::instant);
 		}
-		addChildRow(_toggleNightTheme, marginLarge, slidedPadding, getNightThemeToggleText(), SLOT(onToggleNightTheme()));
+		createChildRow(_toggleNightTheme, marginLarge, slidedPadding, getNightThemeToggleText(), SLOT(onToggleNightTheme()));
 		if (Window::Theme::IsNonDefaultUsed()) {
-			_toggleNightTheme->hideFast();
+			_toggleNightTheme->hide(anim::type::instant);
 		}
 	}
-	addChildRow(_telegramFAQ, marginLarge, lang(lng_settings_faq), SLOT(onTelegramFAQ()));
+	createChildRow(_telegramFAQ, marginLarge, lang(lng_settings_faq), SLOT(onTelegramFAQ()));
 	if (self()) {
 		style::margins marginLogout(0, 0, 0, 2 * st::settingsLargeSkip);
-		addChildRow(_logOut, marginLogout, lang(lng_settings_logout), SLOT(onLogOut()));
+		createChildRow(_logOut, marginLogout, lang(lng_settings_logout), SLOT(onLogOut()));
 	}
 }
 
 void AdvancedWidget::checkNonDefaultTheme() {
 	if (self()) return;
-	_useDefaultTheme->toggleAnimated(Window::Theme::IsNonDefaultUsed());
+	_useDefaultTheme->toggle(
+		Window::Theme::IsNonDefaultUsed(),
+		anim::type::normal);
 	_toggleNightTheme->entity()->setText(getNightThemeToggleText());
-	_toggleNightTheme->toggleAnimated(!Window::Theme::IsNonDefaultUsed());
+	_toggleNightTheme->toggle(
+		!Window::Theme::IsNonDefaultUsed(),
+		anim::type::normal);
 }
 
 void AdvancedWidget::onManageLocalStorage() {

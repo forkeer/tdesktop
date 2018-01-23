@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "history/history_admin_log_section.h"
 
@@ -25,6 +12,7 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 #include "profile/profile_back_button.h"
 #include "styles/style_history.h"
 #include "styles/style_window.h"
+#include "styles/style_info.h"
 #include "ui/widgets/scroll_area.h"
 #include "ui/widgets/shadow.h"
 #include "ui/widgets/buttons.h"
@@ -33,6 +21,7 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 #include "mainwindow.h"
 #include "apiwrap.h"
 #include "window/themes/window_theme.h"
+#include "window/window_controller.h"
 #include "boxes/confirm_box.h"
 #include "base/timer.h"
 #include "lang/lang_keys.h"
@@ -41,7 +30,10 @@ namespace AdminLog {
 
 class FixedBar final : public TWidget, private base::Subscriber {
 public:
-	FixedBar(QWidget *parent, not_null<ChannelData*> channel);
+	FixedBar(
+		QWidget *parent,
+		not_null<Window::Controller*> controller,
+		not_null<ChannelData*> channel);
 
 	base::Observable<void> showFilterSignal;
 	base::Observable<void> searchCancelledSignal;
@@ -74,6 +66,7 @@ private:
 	void applySearch();
 	void searchAnimationCallback();
 
+	not_null<Window::Controller*> _controller;
 	not_null<ChannelData*> _channel;
 	object_ptr<Ui::FlatInput> _field;
 	object_ptr<Profile::BackButton> _backButton;
@@ -88,13 +81,24 @@ private:
 
 };
 
-object_ptr<Window::SectionWidget> SectionMemento::createWidget(QWidget *parent, not_null<Window::Controller*> controller, const QRect &geometry) {
+object_ptr<Window::SectionWidget> SectionMemento::createWidget(
+		QWidget *parent,
+		not_null<Window::Controller*> controller,
+		Window::Column column,
+		const QRect &geometry) {
+	if (column == Window::Column::Third) {
+		return nullptr;
+	}
 	auto result = object_ptr<Widget>(parent, controller, _channel);
 	result->setInternalState(geometry, this);
 	return std::move(result);
 }
 
-FixedBar::FixedBar(QWidget *parent, not_null<ChannelData*> channel) : TWidget(parent)
+FixedBar::FixedBar(
+	QWidget *parent,
+	not_null<Window::Controller*> controller,
+	not_null<ChannelData*> channel) : TWidget(parent)
+, _controller(controller)
 , _channel(channel)
 , _field(this, st::historyAdminLogSearchField, langFactory(lng_dlg_filter))
 , _backButton(this, lang(lng_admin_log_title_all))
@@ -112,7 +116,7 @@ FixedBar::FixedBar(QWidget *parent, not_null<ChannelData*> channel) : TWidget(pa
 	connect(_field, &Ui::FlatInput::submitted, this, [this] { applySearch(); });
 	_searchTimer.setCallback([this] { applySearch(); });
 
-	_cancel->hideFast();
+	_cancel->hide(anim::type::instant);
 }
 
 void FixedBar::applyFilter(const FilterValue &value) {
@@ -121,7 +125,7 @@ void FixedBar::applyFilter(const FilterValue &value) {
 }
 
 void FixedBar::goBack() {
-	App::main()->showBackFromStack();
+	_controller->showBackFromStack();
 }
 
 void FixedBar::showSearch() {
@@ -132,7 +136,7 @@ void FixedBar::showSearch() {
 
 void FixedBar::toggleSearch() {
 	_searchShown = !_searchShown;
-	_cancel->toggleAnimated(_searchShown);
+	_cancel->toggle(_searchShown, anim::type::normal);
 	_searchShownAnimation.start([this] { searchAnimationCallback(); }, _searchShown ? 0. : 1., _searchShown ? 1. : 0., st::historyAdminLogSearchSlideDuration);
 	_search->setDisabled(_searchShown);
 	if (_searchShown) {
@@ -211,7 +215,7 @@ void FixedBar::setAnimatingMode(bool enabled) {
 			setAttribute(Qt::WA_OpaquePaintEvent);
 			showChildren();
 			_field->hide();
-			_cancel->hide();
+			_cancel->setVisible(false);
 		}
 		show();
 	}
@@ -234,8 +238,8 @@ void FixedBar::mousePressEvent(QMouseEvent *e) {
 
 Widget::Widget(QWidget *parent, not_null<Window::Controller*> controller, not_null<ChannelData*> channel) : Window::SectionWidget(parent, controller)
 , _scroll(this, st::historyScroll, false)
-, _fixedBar(this, channel)
-, _fixedBarShadow(this, st::shadowFg)
+, _fixedBar(this, controller, channel)
+, _fixedBarShadow(this)
 , _whatIsThis(this, lang(lng_admin_log_about).toUpper(), st::historyComposeButton) {
 	_fixedBar->move(0, 0);
 	_fixedBar->resizeToWidth(width());
@@ -277,7 +281,7 @@ not_null<ChannelData*> Widget::channel() const {
 
 QPixmap Widget::grabForShowAnimation(const Window::SectionSlideParams &params) {
 	if (params.withTopBarShadow) _fixedBarShadow->hide();
-	auto result = myGrab(this);
+	auto result = Ui::GrabWidget(this);
 	if (params.withTopBarShadow) _fixedBarShadow->show();
 	return result;
 }
@@ -288,7 +292,9 @@ void Widget::doSetInnerFocus() {
 	}
 }
 
-bool Widget::showInternal(not_null<Window::SectionMemento*> memento) {
+bool Widget::showInternal(
+		not_null<Window::SectionMemento*> memento,
+		const Window::SectionShow &params) {
 	if (auto logMemento = dynamic_cast<SectionMemento*>(memento.get())) {
 		if (logMemento->getChannel() == channel()) {
 			restoreState(logMemento);
@@ -300,7 +306,7 @@ bool Widget::showInternal(not_null<Window::SectionMemento*> memento) {
 
 void Widget::setInternalState(const QRect &geometry, not_null<SectionMemento*> memento) {
 	setGeometry(geometry);
-	myEnsureResized(this);
+	Ui::SendPendingMoveResizeEvents(this);
 	restoreState(memento);
 }
 
@@ -419,19 +425,21 @@ void Widget::onScroll() {
 	_inner->setVisibleTopBottom(scrollTop, scrollTop + _scroll->height());
 }
 
-void Widget::showAnimatedHook() {
+void Widget::showAnimatedHook(
+		const Window::SectionSlideParams &params) {
 	_fixedBar->setAnimatingMode(true);
+	if (params.withTopBarShadow) _fixedBarShadow->show();
 }
 
 void Widget::showFinishedHook() {
 	_fixedBar->setAnimatingMode(false);
 }
 
-bool Widget::wheelEventFromFloatPlayer(QEvent *e, Window::Column myColumn, Window::Column playerColumn) {
+bool Widget::wheelEventFromFloatPlayer(QEvent *e) {
 	return _scroll->viewportEvent(e);
 }
 
-QRect Widget::rectForFloatPlayer(Window::Column myColumn, Window::Column playerColumn) {
+QRect Widget::rectForFloatPlayer() const {
 	return mapToGlobal(_scroll->geometry());
 }
 

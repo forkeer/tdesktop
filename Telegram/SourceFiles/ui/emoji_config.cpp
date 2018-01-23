@@ -3,23 +3,10 @@ WARNING! All changes made in this file will be lost!
 Created from 'empty' by 'codegen_emoji'
 
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "emoji_config.h"
 
@@ -269,7 +256,7 @@ RecentEmojiPack &GetRecent() {
 			0xD83DDE15LLU,
 		};
 		for (auto oldKey : defaultRecent) {
-			if (result.size() >= kPanelPerRow * kPanelRowsPerPage) break;
+			if (result.size() >= kRecentLimit) break;
 
 			if (auto emoji = Ui::Emoji::FromOldKey(oldKey)) {
 				if (!haveAlready(emoji)) {
@@ -307,7 +294,9 @@ void AddRecent(EmojiPtr emoji) {
 		}
 	}
 	if (i == e) {
-		while (recent.size() >= kPanelPerRow * kPanelRowsPerPage) recent.pop_back();
+		while (recent.size() >= kRecentLimit) {
+			recent.pop_back();
+		}
 		recent.push_back(qMakePair(emoji, 1));
 		for (i = recent.end() - 1; i != recent.begin(); --i) {
 			if ((i - 1)->second > i->second) {

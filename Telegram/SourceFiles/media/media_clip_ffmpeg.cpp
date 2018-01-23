@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "media/media_clip_ffmpeg.h"
 
@@ -149,7 +136,7 @@ ReaderImplementation::ReadResult FFMpegReaderImplementation::readNextFrame() {
 }
 
 void FFMpegReaderImplementation::processReadFrame() {
-	int64 duration = av_frame_get_pkt_duration(_frame);
+	int64 duration = _frame->pkt_duration;
 	int64 framePts = _frame->pts;
 	TimeMs frameMs = (framePts * 1000LL * _fmtContext->streams[_streamId]->time_base.num) / _fmtContext->streams[_streamId]->time_base.den;
 	_currentFrameDelay = _nextFrameDelay;
@@ -400,9 +387,11 @@ bool FFMpegReaderImplementation::start(Mode mode, TimeMs &positionMs) {
 		}
 	}
 	if (positionMs > 0) {
-		auto ts = (positionMs * _fmtContext->streams[_streamId]->time_base.den) / (1000LL * _fmtContext->streams[_streamId]->time_base.num);
-		if (av_seek_frame(_fmtContext, _streamId, ts, 0) < 0) {
-			if (av_seek_frame(_fmtContext, _streamId, ts, AVSEEK_FLAG_BACKWARD) < 0) {
+		const auto timeBase = _fmtContext->streams[_streamId]->time_base;
+		const auto timeStamp = (positionMs * timeBase.den)
+			/ (1000LL * timeBase.num);
+		if (av_seek_frame(_fmtContext, _streamId, timeStamp, 0) < 0) {
+			if (av_seek_frame(_fmtContext, _streamId, timeStamp, AVSEEK_FLAG_BACKWARD) < 0) {
 				return false;
 			}
 		}
@@ -415,8 +404,7 @@ bool FFMpegReaderImplementation::start(Mode mode, TimeMs &positionMs) {
 	}
 
 	if (hasAudio()) {
-		auto position = (positionMs * soundData->frequency) / 1000LL;
-		Player::mixer()->play(_audioMsgId, std::move(soundData), position);
+		Player::mixer()->play(_audioMsgId, std::move(soundData), positionMs);
 	}
 
 	if (readResult == PacketResult::Ok) {
@@ -428,9 +416,11 @@ bool FFMpegReaderImplementation::start(Mode mode, TimeMs &positionMs) {
 
 bool FFMpegReaderImplementation::inspectAt(TimeMs &positionMs) {
 	if (positionMs > 0) {
-		auto ts = (positionMs * _fmtContext->streams[_streamId]->time_base.den) / (1000LL * _fmtContext->streams[_streamId]->time_base.num);
-		if (av_seek_frame(_fmtContext, _streamId, ts, 0) < 0) {
-			if (av_seek_frame(_fmtContext, _streamId, ts, AVSEEK_FLAG_BACKWARD) < 0) {
+		const auto timeBase = _fmtContext->streams[_streamId]->time_base;
+		const auto timeStamp = (positionMs * timeBase.den)
+			/ (1000LL * timeBase.num);
+		if (av_seek_frame(_fmtContext, _streamId, timeStamp, 0) < 0) {
+			if (av_seek_frame(_fmtContext, _streamId, timeStamp, AVSEEK_FLAG_BACKWARD) < 0) {
 				return false;
 			}
 		}

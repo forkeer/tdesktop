@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "media/media_audio_loaders.h"
 
@@ -98,7 +85,7 @@ void Loaders::clearFromVideoQueue() {
 void Loaders::onInit() {
 }
 
-void Loaders::onStart(const AudioMsgId &audio, qint64 position) {
+void Loaders::onStart(const AudioMsgId &audio, qint64 positionMs) {
 	auto type = audio.type();
 	clear(type);
 	{
@@ -111,7 +98,7 @@ void Loaders::onStart(const AudioMsgId &audio, qint64 position) {
 		track->loading = true;
 	}
 
-	loadData(audio, position);
+	loadData(audio, positionMs);
 }
 
 AudioMsgId Loaders::clear(AudioMsgId::Type type) {
@@ -133,13 +120,13 @@ void Loaders::emitError(AudioMsgId::Type type) {
 }
 
 void Loaders::onLoad(const AudioMsgId &audio) {
-	loadData(audio, 0);
+	loadData(audio, TimeMs(0));
 }
 
-void Loaders::loadData(AudioMsgId audio, qint64 position) {
+void Loaders::loadData(AudioMsgId audio, TimeMs positionMs) {
 	auto err = SetupNoErrorStarted;
 	auto type = audio.type();
-	auto l = setupLoader(audio, err, position);
+	auto l = setupLoader(audio, err, positionMs);
 	if (!l) {
 		if (err == SetupErrorAtStart) {
 			emitError(type);
@@ -210,12 +197,13 @@ void Loaders::loadData(AudioMsgId audio, qint64 position) {
 			return;
 		}
 
+		track->format = l->format();
+		track->frequency = l->samplesFrequency();
+
+		const auto position = (positionMs * track->frequency) / 1000LL;
 		track->bufferedPosition = position;
 		track->state.position = position;
 		track->fadeStartPosition = position;
-
-		track->format = l->format();
-		track->frequency = l->samplesFrequency();
 	}
 	if (samplesCount) {
 		track->ensureStreamCreated();
@@ -291,7 +279,10 @@ void Loaders::loadData(AudioMsgId audio, qint64 position) {
 	}
 }
 
-AudioPlayerLoader *Loaders::setupLoader(const AudioMsgId &audio, SetupError &err, qint64 &position) {
+AudioPlayerLoader *Loaders::setupLoader(
+		const AudioMsgId &audio,
+		SetupError &err,
+		TimeMs positionMs) {
 	err = SetupErrorAtStart;
 	QMutexLocker lock(internal::audioPlayerMutex());
 	if (!mixer()) return nullptr;
@@ -339,7 +330,7 @@ AudioPlayerLoader *Loaders::setupLoader(const AudioMsgId &audio, SetupError &err
 		}
 		l = loader->get();
 
-		if (!l->open(position)) {
+		if (!l->open(positionMs)) {
 			track->state.state = State::StoppedAtStart;
 			return nullptr;
 		}
@@ -350,7 +341,6 @@ AudioPlayerLoader *Loaders::setupLoader(const AudioMsgId &audio, SetupError &err
 		}
 		track->state.length = length;
 		track->state.frequency = l->samplesFrequency();
-		if (!track->state.frequency) track->state.frequency = kDefaultFrequency;
 		err = SetupNoErrorStarted;
 	} else if (track->loaded) {
 		err = SetupErrorLoadedFull;

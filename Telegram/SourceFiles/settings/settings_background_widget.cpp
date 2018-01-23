@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/settings_background_widget.h"
 
@@ -24,7 +11,7 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 #include "lang/lang_keys.h"
 #include "mainwidget.h"
 #include "boxes/background_box.h"
-#include "ui/effects/widget_slide_wrap.h"
+#include "ui/wrap/slide_wrap.h"
 #include "ui/widgets/checkbox.h"
 #include "ui/widgets/buttons.h"
 #include "storage/localstorage.h"
@@ -35,7 +22,7 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 
 namespace Settings {
 
-BackgroundRow::BackgroundRow(QWidget *parent) : TWidget(parent)
+BackgroundRow::BackgroundRow(QWidget *parent) : RpWidget(parent)
 , _chooseFromGallery(this, lang(lng_settings_bg_from_gallery), st::boxLinkButton)
 , _chooseFromFile(this, lang(lng_settings_bg_from_file), st::boxLinkButton)
 , _editTheme(this, lang(lng_settings_bg_edit_theme), st::boxLinkButton)
@@ -208,7 +195,9 @@ BackgroundWidget::BackgroundWidget(QWidget *parent, UserData *self) : BlockWidge
 		}
 	});
 	subscribe(Adaptive::Changed(), [this]() {
-		_adaptive->toggleAnimated(Global::AdaptiveChatLayout() == Adaptive::ChatLayout::Wide);
+		_adaptive->toggle(
+			(Global::AdaptiveChatLayout() == Adaptive::ChatLayout::Wide),
+			anim::type::normal);
 	});
 }
 
@@ -216,16 +205,16 @@ void BackgroundWidget::createControls() {
 	style::margins margin(0, 0, 0, st::settingsSmallSkip);
 	style::margins slidedPadding(0, margin.bottom() / 2, 0, margin.bottom() - (margin.bottom() / 2));
 
-	addChildRow(_background, margin);
+	createChildRow(_background, margin);
 	connect(_background, SIGNAL(chooseFromGallery()), this, SLOT(onChooseFromGallery()));
 	connect(_background, SIGNAL(chooseFromFile()), this, SLOT(onChooseFromFile()));
 	connect(_background, SIGNAL(editTheme()), this, SLOT(onEditTheme()));
 	connect(_background, SIGNAL(useDefault()), this, SLOT(onUseDefaultTheme()));
 
-	addChildRow(_tile, margin, lang(lng_settings_bg_tile), [this](bool) { onTile(); }, Window::Theme::Background()->tile());
-	addChildRow(_adaptive, margin, slidedPadding, lang(lng_settings_adaptive_wide), [this](bool) { onAdaptive(); }, Global::AdaptiveForWide());
+	createChildRow(_tile, margin, lang(lng_settings_bg_tile), [this](bool) { onTile(); }, Window::Theme::Background()->tile());
+	createChildRow(_adaptive, margin, slidedPadding, lang(lng_settings_adaptive_wide), [this](bool) { onAdaptive(); }, Global::AdaptiveForWide());
 	if (Global::AdaptiveChatLayout() != Adaptive::ChatLayout::Wide) {
-		_adaptive->hideFast();
+		_adaptive->hide(anim::type::instant);
 	}
 }
 

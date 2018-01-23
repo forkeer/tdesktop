@@ -1,41 +1,43 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include <rpl/variable.h>
 #include "boxes/peer_list_box.h"
 #include "mtproto/sender.h"
-#include "base/weak_unique_ptr.h"
+#include "base/timer.h"
+#include "base/weak_ptr.h"
+#include "info/profile/info_profile_members_controllers.h"
+
+namespace Window {
+class Navigation;
+} // namespace Window
 
 namespace Profile {
 
 // Viewing admins, banned or restricted users list with search.
-class ParticipantsBoxController : public PeerListController, private base::Subscriber, private MTP::Sender, public base::enable_weak_from_this {
+class ParticipantsBoxController
+	: public PeerListController
+	, private base::Subscriber
+	, private MTP::Sender
+	, public base::has_weak_ptr {
 public:
 	enum class Role {
+		Profile,
 		Members,
 		Admins,
 		Restricted,
 		Kicked,
 	};
-	static void Start(not_null<ChannelData*> channel, Role role);
+	static void Start(
+		not_null<Window::Navigation*> navigation,
+		not_null<ChannelData*> channel,
+		Role role);
 
 	struct Additional {
 		std::map<not_null<UserData*>, MTPChannelAdminRights> adminRights;
@@ -49,41 +51,91 @@ public:
 		UserData *creator = nullptr;
 	};
 
-	ParticipantsBoxController(not_null<ChannelData*> channel, Role role);
+	ParticipantsBoxController(
+		not_null<Window::Navigation*> navigation,
+		not_null<ChannelData*> channel,
+		Role role);
 
 	void addNewItem();
 
 	void prepare() override;
 	void rowClicked(not_null<PeerListRow*> row) override;
 	void rowActionClicked(not_null<PeerListRow*> row) override;
+	Ui::PopupMenu *rowContextMenu(
+		not_null<PeerListRow*> row) override;
 	void loadMoreRows() override;
 
 	void peerListSearchAddRow(not_null<PeerData*> peer) override;
-	std::unique_ptr<PeerListRow> createSearchRow(not_null<PeerData*> peer) override;
+	std::unique_ptr<PeerListRow> createSearchRow(
+		not_null<PeerData*> peer) override;
+	std::unique_ptr<PeerListRow> createRestoredRow(
+		not_null<PeerData*> peer) override;
+
+	std::unique_ptr<PeerListState> saveState() const override;
+	void restoreState(std::unique_ptr<PeerListState> state) override;
 
 	// Callback(not_null<UserData*>)
 	template <typename Callback>
-	static void HandleParticipant(const MTPChannelParticipant &participant, Role role, not_null<Additional*> additional, Callback callback);
+	static void HandleParticipant(
+		const MTPChannelParticipant &participant,
+		Role role,
+		not_null<Additional*> additional,
+		Callback callback);
+
+	rpl::producer<int> onlineCountValue() const override;
 
 protected:
 	virtual std::unique_ptr<PeerListRow> createRow(not_null<UserData*> user) const;
 
 private:
-	static std::unique_ptr<PeerListSearchController> CreateSearchController(not_null<ChannelData*> channel, Role role, not_null<Additional*> additional);
+	using Row = Info::Profile::MemberListRow;
+	using Type = Row::Type;
+	using Rights = Row::Rights;
+	struct SavedState : SavedStateBase {
+		std::unique_ptr<PeerListSearchController::SavedStateBase> searchState;
+		int offset = 0;
+		bool allLoaded = false;
+		bool wasLoading = false;
+		Additional additional;
+		rpl::lifetime lifetime;
+	};
 
+	static std::unique_ptr<PeerListSearchController> CreateSearchController(
+		not_null<ChannelData*> channel,
+		Role role,
+		not_null<Additional*> additional);
+
+	void setNonEmptyDescription();
+	void setupSortByOnline();
+	void setupListChangeViewers();
+	void sortByOnlineDelayed();
+	void sortByOnline();
 	void showAdmin(not_null<UserData*> user);
-	void editAdminDone(not_null<UserData*> user, const MTPChannelAdminRights &rights);
+	void editAdminDone(
+		not_null<UserData*> user,
+		const MTPChannelAdminRights &rights);
 	void showRestricted(not_null<UserData*> user);
-	void editRestrictedDone(not_null<UserData*> user, const MTPChannelBannedRights &rights);
+	void editRestrictedDone(
+		not_null<UserData*> user,
+		const MTPChannelBannedRights &rights);
 	void removeKicked(not_null<PeerListRow*> row, not_null<UserData*> user);
 	void kickMember(not_null<UserData*> user);
 	void kickMemberSure(not_null<UserData*> user);
+	void removeAdmin(not_null<UserData*> user);
+	void removeAdminSure(not_null<UserData*> user);
 	bool appendRow(not_null<UserData*> user);
 	bool prependRow(not_null<UserData*> user);
 	bool removeRow(not_null<UserData*> user);
 	void refreshCustomStatus(not_null<PeerListRow*> row) const;
 	bool feedMegagroupLastParticipants();
+	void refreshOnlineCount();
+	Type computeType(not_null<UserData*> user) const;
+	void recomputeTypeFor(not_null<UserData*> user);
+	bool canEditAdmin(not_null<UserData*> user) const;
+	bool canRestrictUser(not_null<UserData*> user) const;
+	bool canEditAdminByRights(not_null<UserData*> user) const;
 
+	not_null<Window::Navigation*> _navigation;
 	not_null<ChannelData*> _channel;
 	Role _role = Role::Admins;
 	int _offset = 0;
@@ -93,10 +145,15 @@ private:
 	QPointer<BoxContent> _editBox;
 	QPointer<PeerListBox> _addBox;
 
+	base::Timer _sortByOnlineTimer;
+	rpl::variable<int> _onlineCount = 0;
+
 };
 
 // Members, banned and restricted users server side search.
-class ParticipantsBoxSearchController : public PeerListSearchController, private MTP::Sender {
+class ParticipantsBoxSearchController
+	: public PeerListSearchController
+	, private MTP::Sender {
 public:
 	using Role = ParticipantsBoxController::Role;
 	using Additional = ParticipantsBoxController::Additional;
@@ -107,7 +164,16 @@ public:
 	bool isLoading() override;
 	bool loadMoreRows() override;
 
+	std::unique_ptr<SavedStateBase> saveState() const override;
+	void restoreState(std::unique_ptr<SavedStateBase> state) override;
+
 private:
+	struct SavedState : SavedStateBase {
+		QString query;
+		int offset = 0;
+		bool allLoaded = false;
+		bool wasLoading = false;
+	};
 	struct CacheEntry {
 		MTPchannels_ChannelParticipants result;
 		int requestedCount = 0;
@@ -119,7 +185,10 @@ private:
 
 	void searchOnServer();
 	bool searchInCache();
-	void searchDone(mtpRequestId requestId, const MTPchannels_ChannelParticipants &result, int requestedCount);
+	void searchDone(
+		mtpRequestId requestId,
+		const MTPchannels_ChannelParticipants &result,
+		int requestedCount);
 
 	not_null<ChannelData*> _channel;
 	Role _role = Role::Restricted;
@@ -136,7 +205,7 @@ private:
 };
 
 // Adding an admin, banned or restricted user from channel members with search + contacts search + global search.
-class AddParticipantBoxController : public PeerListController, private base::Subscriber, private MTP::Sender, public base::enable_weak_from_this {
+class AddParticipantBoxController : public PeerListController, private base::Subscriber, private MTP::Sender, public base::has_weak_ptr {
 public:
 	using Role = ParticipantsBoxController::Role;
 	using Additional = ParticipantsBoxController::Additional;

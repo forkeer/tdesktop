@@ -1,26 +1,14 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
 #include "settings/settings_block_widget.h"
+#include "ui/rp_widget.h"
 
 namespace Ui {
 class FlatLabel;
@@ -28,7 +16,7 @@ class FlatLabel;
 
 namespace Settings {
 
-class LabeledLink : public TWidget {
+class LabeledLink : public Ui::RpWidget {
 public:
 	enum class Type {
 		Primary,
@@ -50,7 +38,7 @@ private:
 };
 
 #ifndef OS_WIN_STORE
-class DownloadPathState : public TWidget, private base::Subscriber {
+class DownloadPathState : public Ui::RpWidget, private base::Subscriber {
 	Q_OBJECT
 
 public:
@@ -94,7 +82,6 @@ public:
 
 private slots:
 	void onReplaceEmoji();
-	void onViewList();
 	void onDontAskDownloadPath();
 	void onAutomaticMediaDownloadSettings();
 	void onManageStickerSets();
@@ -107,18 +94,17 @@ private:
 	void sendByChanged(SendByType value);
 	void createControls();
 
-	object_ptr<Ui::Checkbox> _replaceEmoji = { nullptr };
-	object_ptr<Ui::WidgetSlideWrap<Ui::LinkButton>> _viewList = { nullptr };
-	object_ptr<Ui::Checkbox> _dontAskDownloadPath = { nullptr };
+	Ui::Checkbox *_replaceEmoji = nullptr;
+	Ui::Checkbox *_dontAskDownloadPath = nullptr;
 
 #ifndef OS_WIN_STORE
-	object_ptr<Ui::WidgetSlideWrap<DownloadPathState>> _downloadPath = { nullptr };
+	Ui::SlideWrap<DownloadPathState> *_downloadPath = nullptr;
 #endif // OS_WIN_STORE
 
-	object_ptr<Ui::Radioenum<SendByType>> _sendByEnter = { nullptr };
-	object_ptr<Ui::Radioenum<SendByType>> _sendByCtrlEnter = { nullptr };
-	object_ptr<Ui::LinkButton> _automaticMediaDownloadSettings = { nullptr };
-	object_ptr<Ui::LinkButton> _manageStickerSets = { nullptr };
+	Ui::Radioenum<SendByType> *_sendByEnter = nullptr;
+	Ui::Radioenum<SendByType> *_sendByCtrlEnter = nullptr;
+	Ui::LinkButton *_automaticMediaDownloadSettings = nullptr;
+	Ui::LinkButton *_manageStickerSets = nullptr;
 
 };
 

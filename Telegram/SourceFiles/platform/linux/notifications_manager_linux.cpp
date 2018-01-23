@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "platform/linux/notifications_manager_linux.h"
 
@@ -24,10 +11,10 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 #include "platform/linux/linux_libnotify.h"
 #include "platform/linux/linux_libs.h"
 #include "lang/lang_keys.h"
-#include "base/task_queue.h"
 
 namespace Platform {
 namespace Notifications {
+#ifndef TDESKTOP_DISABLE_GTK_INTEGRATION
 namespace {
 
 bool LibNotifyLoaded() {
@@ -202,10 +189,9 @@ private:
 		MsgId msgId = 0;
 	};
 	static void performOnMainQueue(NotificationDataStruct *data, base::lambda_once<void(Manager *manager)> task) {
-		base::TaskQueue::Main().Put([weak = data->weak, task = std::move(task)]() mutable {
-			if (auto strong = weak.lock()) {
-				task(*strong);
-			}
+		const auto weak = data->weak;
+		crl::on_main(weak, [=, task = std::move(task)]() mutable {
+			task(*weak.lock());
 		});
 	}
 	static void notificationDataFree(gpointer data) {
@@ -235,7 +221,7 @@ private:
 
 };
 
-using Notification = QSharedPointer<NotificationData>;
+using Notification = std::shared_ptr<NotificationData>;
 
 QString GetServerName() {
 	if (!LibNotifyLoaded()) {
@@ -269,8 +255,10 @@ QString GetServerName() {
 auto LibNotifyServerName = QString();
 
 } // namespace
+#endif // !TDESKTOP_DISABLE_GTK_INTEGRATION
 
 bool Supported() {
+#ifndef TDESKTOP_DISABLE_GTK_INTEGRATION
 	static auto Checked = false;
 	if (!Checked) {
 		Checked = true;
@@ -278,23 +266,31 @@ bool Supported() {
 	}
 
 	return !LibNotifyServerName.isEmpty();
+#else
+	return false;
+#endif // !TDESKTOP_DISABLE_GTK_INTEGRATION
 }
 
 std::unique_ptr<Window::Notifications::Manager> Create(Window::Notifications::System *system) {
+#ifndef TDESKTOP_DISABLE_GTK_INTEGRATION
 	if (Global::NativeNotifications() && Supported()) {
 		return std::make_unique<Manager>(system);
 	}
+#endif // !TDESKTOP_DISABLE_GTK_INTEGRATION
 	return nullptr;
 }
 
 void Finish() {
+#ifndef TDESKTOP_DISABLE_GTK_INTEGRATION
 	if (Libs::notify_is_initted && Libs::notify_uninit) {
 		if (Libs::notify_is_initted()) {
 			Libs::notify_uninit();
 		}
 	}
+#endif // !TDESKTOP_DISABLE_GTK_INTEGRATION
 }
 
+#ifndef TDESKTOP_DISABLE_GTK_INTEGRATION
 class Manager::Private {
 public:
 	using Type = Window::Notifications::CachedUserpics::Type;
@@ -347,7 +343,9 @@ private:
 	std::shared_ptr<Manager*> _guarded;
 
 };
+#endif // !TDESKTOP_DISABLE_GTK_INTEGRATION
 
+#ifndef TDESKTOP_DISABLE_GTK_INTEGRATION
 void Manager::Private::init(Manager *manager) {
 	_guarded = std::make_shared<Manager*>(manager);
 
@@ -427,7 +425,13 @@ void Manager::Private::showNextNotification() {
 
 	auto peerId = data.peer->id;
 	auto msgId = data.msgId;
-	auto notification = MakeShared<NotificationData>(_guarded, data.title, data.body, _capabilities, peerId, msgId);
+	auto notification = std::make_shared<NotificationData>(
+		_guarded,
+		data.title,
+		data.body,
+		_capabilities,
+		peerId,
+		msgId);
 	if (!notification->valid()) {
 		return;
 	}
@@ -543,6 +547,7 @@ void Manager::doClearAllFast() {
 void Manager::doClearFromHistory(History *history) {
 	_private->clearFromHistory(history);
 }
+#endif // !TDESKTOP_DISABLE_GTK_INTEGRATION
 
 } // namespace Notifications
 } // namespace Platform

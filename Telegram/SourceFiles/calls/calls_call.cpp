@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "calls/calls_call.h"
 
@@ -451,7 +438,11 @@ void Call::createAndStartController(const MTPDphoneCall &call) {
 
 	voip_config_t config = { 0 };
 	config.data_saving = DATA_SAVING_NEVER;
+#ifdef Q_OS_MAC
+	config.enableAEC = (QSysInfo::macVersion() < QSysInfo::MV_10_7);
+#else // Q_OS_MAC
 	config.enableAEC = true;
+#endif // Q_OS_MAC
 	config.enableNS = true;
 	config.enableAGC = true;
 	config.init_timeout = Global::CallConnectTimeoutMs() / 1000;
@@ -597,7 +588,7 @@ void Call::setState(State state) {
 			break;
 		case State::Ended:
 			_delegate->playSound(Delegate::Sound::Ended);
-			// [[fallthrough]]
+			[[fallthrough]];
 		case State::EndedByOtherDevice:
 			_delegate->callFinished(this);
 			break;
@@ -661,14 +652,14 @@ void Call::handleRequestError(const RPCError &error) {
 	} else if (error.type() == qstr("PARTICIPANT_VERSION_OUTDATED")) {
 		Ui::show(Box<InformBox>(lng_call_error_outdated(lt_user, App::peerName(_user))));
 	} else if (error.type() == qstr("CALL_PROTOCOL_LAYER_INVALID")) {
-		Ui::show(Box<InformBox>(lng_call_error_incompatible(lt_user, App::peerName(_user))));
+		Ui::show(Box<InformBox>(Lang::Hard::CallErrorIncompatible().replace("{user}", App::peerName(_user))));
 	}
 	finish(FinishType::Failed);
 }
 
 void Call::handleControllerError(int error) {
 	if (error == TGVOIP_ERROR_INCOMPATIBLE) {
-		Ui::show(Box<InformBox>(lng_call_error_incompatible(lt_user, App::peerName(_user))));
+		Ui::show(Box<InformBox>(Lang::Hard::CallErrorIncompatible().replace("{user}", App::peerName(_user))));
 	} else if (error == TGVOIP_ERROR_AUDIO_IO) {
 		Ui::show(Box<InformBox>(lang(lng_call_error_audio_io)));
 	}

@@ -1,21 +1,8 @@
 # This file is part of Telegram Desktop,
-# the official desktop version of Telegram messaging app, see https://telegram.org
+# the official desktop application for the Telegram messaging service.
 #
-# Telegram Desktop is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# It is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
-#
-# In addition, as a special exception, the copyright holders give permission
-# to link the code of portions of this program with the OpenSSL library.
-#
-# Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-# Copyright (c) 2014 John Preston, https://desktop.telegram.org
+# For license and copyright information please follow this link:
+# https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 {
   'conditions': [[ 'build_mac', {
@@ -76,14 +63,15 @@
         '/usr/local/macold/lib/libexif.a',
         '/usr/local/macold/lib/libc++.a',
         '/usr/local/macold/lib/libc++abi.a',
-        '<(libs_loc)/macold/openssl-1.0.1h/libssl.a',
-        '<(libs_loc)/macold/openssl-1.0.1h/libcrypto.a',
+        '<(libs_loc)/macold/openssl/libssl.a',
+        '<(libs_loc)/macold/openssl/libcrypto.a',
       ],
     },
     'include_dirs': [
       '/usr/local/macold',
       '/usr/local/macold/include/c++/v1',
-      '<(libs_loc)/macold/openssl-1.0.1h/include',
+      '<(libs_loc)/macold/openssl/include',
+      '<(libs_loc)/macold/libexif-0.6.20',
       '<(libs_loc)/macold/crashpad',
       '<(libs_loc)/macold/crashpad/third_party/mini_chromium/mini_chromium',
     ],
@@ -136,14 +124,14 @@
         '/usr/local/lib/libavutil.a',
         '/usr/local/lib/libswscale.a',
         '/usr/local/lib/libswresample.a',
-        '<(libs_loc)/openssl-xcode/libssl.a',
-        '<(libs_loc)/openssl-xcode/libcrypto.a',
+        '<(libs_loc)/openssl/libssl.a',
+        '<(libs_loc)/openssl/libcrypto.a',
       ],
     },
     'include_dirs': [
       '<(libs_loc)/crashpad',
       '<(libs_loc)/crashpad/third_party/mini_chromium/mini_chromium',
-      '<(libs_loc)/openssl-xcode/include'
+      '<(libs_loc)/openssl/include'
     ],
     'configurations': {
       'Debug': {

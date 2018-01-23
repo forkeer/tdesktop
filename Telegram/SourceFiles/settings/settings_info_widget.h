@@ -1,26 +1,14 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
 #include "settings/settings_block_widget.h"
+#include "ui/rp_widget.h"
 
 namespace Ui {
 class FlatLabel;
@@ -46,11 +34,16 @@ private:
 	void refreshUsername();
 	void refreshBio();
 
-	class LabeledWidget : public TWidget {
+	class LabeledWidget : public Ui::RpWidget {
 	public:
 		LabeledWidget(QWidget *parent, const style::FlatLabel &valueSt);
 
-		void setLabeledText(const QString &label, const TextWithEntities &textWithEntities, const TextWithEntities &shortTextWithEntities, const QString &copyText);
+		void setLabeledText(
+			const QString &label,
+			const TextWithEntities &textWithEntities,
+			const TextWithEntities &shortTextWithEntities,
+			const QString &copyText,
+			int availableWidth);
 
 		Ui::FlatLabel *textLabel() const;
 		Ui::FlatLabel *shortTextLabel() const;
@@ -61,7 +54,10 @@ private:
 		int resizeGetHeight(int newWidth) override;
 
 	private:
-		void setLabelText(object_ptr<Ui::FlatLabel> &text, const TextWithEntities &textWithEntities, const QString &copyText);
+		void setLabelText(
+			object_ptr<Ui::FlatLabel> &text,
+			const TextWithEntities &textWithEntities,
+			const QString &copyText);
 
 		const style::FlatLabel &_valueSt;
 		object_ptr<Ui::FlatLabel> _label = { nullptr };
@@ -70,12 +66,17 @@ private:
 
 	};
 
-	using LabeledWrap = Ui::WidgetSlideWrap<LabeledWidget>;
-	void setLabeledText(object_ptr<LabeledWrap> &row, const QString &label, const TextWithEntities &textWithEntities, const TextWithEntities &shortTextWithEntities, const QString &copyText);
+	using LabeledWrap = Ui::SlideWrap<LabeledWidget>;
+	void setLabeledText(
+		LabeledWrap *row,
+		const QString &label,
+		const TextWithEntities &textWithEntities,
+		const TextWithEntities &shortTextWithEntities,
+		const QString &copyText);
 
-	object_ptr<LabeledWrap> _mobileNumber = { nullptr };
-	object_ptr<LabeledWrap> _username = { nullptr };
-	object_ptr<LabeledWrap> _bio = { nullptr };
+	LabeledWrap *_mobileNumber = nullptr;
+	LabeledWrap *_username = nullptr;
+	LabeledWrap *_bio = nullptr;
 
 };
 

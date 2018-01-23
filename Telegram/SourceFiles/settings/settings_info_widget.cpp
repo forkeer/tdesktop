@@ -1,29 +1,16 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/settings_info_widget.h"
 
 #include "styles/style_settings.h"
 #include "lang/lang_keys.h"
 #include "ui/widgets/labels.h"
-#include "ui/effects/widget_slide_wrap.h"
+#include "ui/wrap/slide_wrap.h"
 #include "boxes/username_box.h"
 #include "boxes/add_contact_box.h"
 #include "boxes/change_phone_box.h"
@@ -46,9 +33,9 @@ InfoWidget::InfoWidget(QWidget *parent, UserData *self) : BlockWidget(parent, se
 void InfoWidget::createControls() {
 	style::margins margin(0, 0, 0, 0);
 	style::margins slidedPadding(0, 0, 0, 0);
-	addChildRow(_mobileNumber, margin, slidedPadding, st::settingsBlockOneLineTextPart);
-	addChildRow(_username, margin, slidedPadding, st::settingsBlockOneLineTextPart);
-	addChildRow(_bio, margin, slidedPadding, st::settingsBioValue);
+	createChildRow(_mobileNumber, margin, slidedPadding, st::settingsBlockOneLineTextPart);
+	createChildRow(_username, margin, slidedPadding, st::settingsBlockOneLineTextPart);
+	createChildRow(_bio, margin, slidedPadding, st::settingsBioValue);
 	refreshControls();
 }
 
@@ -67,10 +54,15 @@ void InfoWidget::refreshMobileNumber() {
 			phoneText.text = App::phoneFromSharedContact(peerToUser(user->id));
 		}
 	}
-	setLabeledText(_mobileNumber, lang(lng_profile_mobile_number), phoneText, TextWithEntities(), lang(lng_profile_copy_phone));
+	setLabeledText(
+		_mobileNumber,
+		lang(lng_profile_mobile_number),
+		phoneText,
+		TextWithEntities(),
+		lang(lng_profile_copy_phone));
 	if (auto text = _mobileNumber->entity()->textLabel()) {
 		text->setRichText(textcmdLink(1, phoneText.text));
-		text->setLink(1, MakeShared<LambdaClickHandler>([] {
+		text->setLink(1, std::make_shared<LambdaClickHandler>([] {
 			Ui::show(Box<ChangePhoneBox>());
 		}));
 	}
@@ -85,8 +77,18 @@ void InfoWidget::refreshUsername() {
 		usernameText.text = '@' + self()->username;
 		copyText = lang(lng_context_copy_mention);
 	}
-	usernameText.entities.push_back(EntityInText(EntityInTextCustomUrl, 0, usernameText.text.size(), Messenger::Instance().createInternalLinkFull(self()->username)));
-	setLabeledText(_username, lang(lng_profile_username), usernameText, TextWithEntities(), copyText);
+	usernameText.entities.push_back(EntityInText(
+		EntityInTextCustomUrl,
+		0,
+		usernameText.text.size(),
+		Messenger::Instance().createInternalLinkFull(
+			self()->username)));
+	setLabeledText(
+		_username,
+		lang(lng_profile_username),
+		usernameText,
+		TextWithEntities(),
+		copyText);
 	if (auto text = _username->entity()->textLabel()) {
 		text->setClickHandlerHook([](const ClickHandlerPtr &handler, Qt::MouseButton button) {
 			Ui::show(Box<UsernameBox>());
@@ -103,8 +105,17 @@ void InfoWidget::refreshBio() {
 	} else {
 		bioText.text = aboutText;
 	}
-	bioText.entities.push_back(EntityInText(EntityInTextCustomUrl, 0, bioText.text.size(), QString()));
-	setLabeledText(_bio, lang(lng_profile_bio), bioText, TextWithEntities(), QString());
+	bioText.entities.push_back(EntityInText(
+		EntityInTextCustomUrl,
+		0,
+		bioText.text.size(),
+		QString("internal:edit_bio")));
+	setLabeledText(
+		_bio,
+		lang(lng_profile_bio),
+		bioText,
+		TextWithEntities(),
+		QString());
 	if (auto text = _bio->entity()->textLabel()) {
 		text->setClickHandlerHook([](const ClickHandlerPtr &handler, Qt::MouseButton button) {
 			Ui::show(Box<EditBioBox>(App::self()));
@@ -113,19 +124,34 @@ void InfoWidget::refreshBio() {
 	}
 }
 
-void InfoWidget::setLabeledText(object_ptr<LabeledWrap> &row, const QString &label, const TextWithEntities &textWithEntities, const TextWithEntities &shortTextWithEntities, const QString &copyText) {
+void InfoWidget::setLabeledText(
+		LabeledWrap *row,
+		const QString &label,
+		const TextWithEntities &textWithEntities,
+		const TextWithEntities &shortTextWithEntities,
+		const QString &copyText) {
 	auto nonEmptyText = !textWithEntities.text.isEmpty();
 	if (nonEmptyText) {
-		row->entity()->setLabeledText(label, textWithEntities, shortTextWithEntities, copyText);
+		row->entity()->setLabeledText(
+			label,
+			textWithEntities,
+			shortTextWithEntities,
+			copyText,
+			width());
 	}
-	row->toggleAnimated(nonEmptyText);
+	row->toggle(nonEmptyText, anim::type::normal);
 }
 
-InfoWidget::LabeledWidget::LabeledWidget(QWidget *parent, const style::FlatLabel &valueSt) : TWidget(parent)
+InfoWidget::LabeledWidget::LabeledWidget(QWidget *parent, const style::FlatLabel &valueSt) : RpWidget(parent)
 , _valueSt(valueSt) {
 }
 
-void InfoWidget::LabeledWidget::setLabeledText(const QString &label, const TextWithEntities &textWithEntities, const TextWithEntities &shortTextWithEntities, const QString &copyText) {
+void InfoWidget::LabeledWidget::setLabeledText(
+		const QString &label,
+		const TextWithEntities &textWithEntities,
+		const TextWithEntities &shortTextWithEntities,
+		const QString &copyText,
+		int availableWidth) {
 	_label.destroy();
 	_text.destroy();
 	_shortText.destroy();
@@ -135,7 +161,7 @@ void InfoWidget::LabeledWidget::setLabeledText(const QString &label, const TextW
 	_label->show();
 	setLabelText(_text, textWithEntities, copyText);
 	setLabelText(_shortText, shortTextWithEntities, copyText);
-	resizeToWidth(width());
+	resizeToNaturalWidth(availableWidth);
 }
 
 Ui::FlatLabel *InfoWidget::LabeledWidget::textLabel() const {
@@ -172,8 +198,6 @@ void InfoWidget::notifyPeerUpdated(const Notify::PeerUpdate &update) {
 	if (update.flags & UpdateFlag::AboutChanged) {
 		refreshBio();
 	}
-
-	contentSizeUpdated();
 }
 
 int InfoWidget::LabeledWidget::naturalWidth() const {
@@ -182,16 +206,13 @@ int InfoWidget::LabeledWidget::naturalWidth() const {
 }
 
 int InfoWidget::LabeledWidget::resizeGetHeight(int newWidth) {
-	int marginLeft = st::settingsBlockOneLineTextPart.margin.left();
-	int marginRight = st::settingsBlockOneLineTextPart.margin.right();
-
 	if (!_label) return 0;
 
-	_label->moveToLeft(0, st::settingsBlockOneLineTextPart.margin.top(), newWidth);
-	auto labelNatural = _label->naturalWidth();
-	Assert(labelNatural >= 0);
-
-	_label->resize(qMin(newWidth, labelNatural), _label->height());
+	_label->moveToLeft(
+		0,
+		st::settingsBlockOneLineTextPart.margin.top(),
+		newWidth);
+	_label->resizeToNaturalWidth(newWidth);
 
 	int textLeft = _label->width() + st::normalFont->spacew;
 	int textWidth = _text->naturalWidth();
@@ -199,14 +220,20 @@ int InfoWidget::LabeledWidget::resizeGetHeight(int newWidth) {
 	bool doesNotFit = (textWidth > availableWidth);
 	accumulate_min(textWidth, availableWidth);
 	accumulate_min(textWidth, st::msgMaxWidth);
-	if (textWidth + marginLeft + marginRight < 0) {
-		textWidth = -(marginLeft + marginRight);
+	if (textWidth < 0) {
+		textWidth = 0;
 	}
-	_text->resizeToWidth(textWidth + marginLeft + marginRight);
-	_text->moveToLeft(textLeft - marginLeft, 0, newWidth);
+	_text->resizeToWidth(textWidth);
+	_text->moveToLeft(
+		textLeft,
+		st::settingsBlockOneLineTextPart.margin.top(),
+		newWidth);
 	if (_shortText) {
-		_shortText->resizeToWidth(textWidth + marginLeft + marginRight);
-		_shortText->moveToLeft(textLeft - marginLeft, 0, newWidth);
+		_shortText->resizeToWidth(textWidth);
+		_shortText->moveToLeft(
+			textLeft,
+			st::settingsBlockOneLineTextPart.margin.top(),
+			newWidth);
 		if (doesNotFit) {
 			_shortText->show();
 			_text->hide();
@@ -215,7 +242,9 @@ int InfoWidget::LabeledWidget::resizeGetHeight(int newWidth) {
 			_text->show();
 		}
 	}
-	return st::settingsBlockOneLineTextPart.margin.top() + qMax(_label->height(), _text->height() - st::settingsBlockOneLineTextPart.margin.top() - st::settingsBlockOneLineTextPart.margin.bottom()) + st::settingsBlockOneLineTextPart.margin.bottom();
+	return st::settingsBlockOneLineTextPart.margin.top()
+		+ qMax(_label->heightNoMargins(), _text->heightNoMargins())
+		+ st::settingsBlockOneLineTextPart.margin.bottom();
 }
 
 } // namespace Settings

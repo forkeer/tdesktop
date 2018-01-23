@@ -1,29 +1,13 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "boxes/photo_crop_box.h"
 
 #include "lang/lang_keys.h"
-#include "messenger.h"
-#include "mainwidget.h"
-#include "storage/file_upload.h"
 #include "ui/widgets/buttons.h"
 #include "styles/style_boxes.h"
 
@@ -33,7 +17,7 @@ PhotoCropBox::PhotoCropBox(QWidget*, const QImage &img, const PeerId &peer)
 	init(img, nullptr);
 }
 
-PhotoCropBox::PhotoCropBox(QWidget*, const QImage &img, PeerData *peer)
+PhotoCropBox::PhotoCropBox(QWidget*, const QImage &img, not_null<PeerData*> peer)
 : _img(img)
 , _peerId(peer->id) {
 	init(img, peer);
@@ -52,9 +36,6 @@ void PhotoCropBox::init(const QImage &img, PeerData *peer) {
 void PhotoCropBox::prepare() {
 	addButton(langFactory(lng_settings_save), [this] { sendPhoto(); });
 	addButton(langFactory(lng_cancel), [this] { closeBox(); });
-	if (peerToBareInt(_peerId)) {
-		connect(this, SIGNAL(ready(const QImage&)), this, SLOT(onReady(const QImage&)));
-	}
 
 	int32 s = st::boxWideWidth - st::boxPhotoPadding.left() - st::boxPhotoPadding.right();
 	_thumb = App::pixmapFromImageInPlace(_img.scaled(s * cIntRetinaFactor(), s * cIntRetinaFactor(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
@@ -107,6 +88,10 @@ int PhotoCropBox::mouseState(QPoint p) {
 		return 5;
 	}
 	return 0;
+}
+
+rpl::producer<QImage> PhotoCropBox::ready() const {
+	return _readyImages.events();
 }
 
 void PhotoCropBox::mouseReleaseEvent(QMouseEvent *e) {
@@ -288,10 +273,9 @@ void PhotoCropBox::sendPhoto() {
 		tosend = cropped.copy();
 	}
 
-	emit ready(tosend);
-	closeBox();
-}
-
-void PhotoCropBox::onReady(const QImage &tosend) {
-	Messenger::Instance().uploadProfilePhoto(tosend, _peerId);
+	auto weak = make_weak(this);
+	_readyImages.fire(std::move(tosend));
+	if (weak) {
+		closeBox();
+	}
 }

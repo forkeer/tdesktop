@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
@@ -43,9 +30,19 @@ inline constexpr void noop() {
 	std::abort();
 }
 
+#ifndef GSL_UNLIKELY
+#define DEFINED_GSL_UNLIKELY_
+#define GSL_UNLIKELY(expression) (expression)
+#endif // GSL_UNLIKELY
+
 inline constexpr void validate(bool condition, const char *message, const char *file, int line) {
 	(GSL_UNLIKELY(!(condition))) ? fail(message, file, line) : noop();
 }
+
+#ifdef DEFINED_GSL_UNLIKELY_
+#undef GSL_UNLIKELY
+#undef DEFINED_GSL_UNLIKELY_
+#endif // DEFINED_GSL_UNLIKELY_
 
 } // namespace assertion
 } // namespace base

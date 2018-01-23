@@ -1,32 +1,20 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "window/window_main_menu.h"
 
 #include "styles/style_window.h"
 #include "styles/style_dialogs.h"
-#include "profile/profile_userpic_button.h"
 #include "window/themes/window_theme.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/labels.h"
 #include "ui/widgets/menu.h"
+#include "ui/special_buttons.h"
+#include "ui/empty_userpic.h"
 #include "mainwindow.h"
 #include "storage/localstorage.h"
 #include "boxes/about_box.h"
@@ -40,7 +28,11 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 
 namespace Window {
 
-MainMenu::MainMenu(QWidget *parent) : TWidget(parent)
+MainMenu::MainMenu(
+	QWidget *parent,
+	not_null<Controller*> controller)
+: TWidget(parent)
+, _controller(controller)
 , _menu(this, st::mainMenu)
 , _telegram(this, st::mainMenuTelegramLabel)
 , _version(this, st::mainMenuVersionLabel) {
@@ -66,10 +58,10 @@ MainMenu::MainMenu(QWidget *parent) : TWidget(parent)
 	refreshMenu();
 
 	_telegram->setRichText(textcmdLink(1, qsl("Telegram Desktop")));
-	_telegram->setLink(1, MakeShared<UrlClickHandler>(qsl("https://desktop.telegram.org")));
+	_telegram->setLink(1, std::make_shared<UrlClickHandler>(qsl("https://desktop.telegram.org")));
 	_version->setRichText(textcmdLink(1, lng_settings_current_version(lt_version, currentVersionText())) + QChar(' ') + QChar(8211) + QChar(' ') + textcmdLink(2, lang(lng_menu_about)));
-	_version->setLink(1, MakeShared<UrlClickHandler>(qsl("https://desktop.telegram.org/changelog")));
-	_version->setLink(2, MakeShared<LambdaClickHandler>([] { Ui::show(Box<AboutBox>()); }));
+	_version->setLink(1, std::make_shared<UrlClickHandler>(qsl("https://desktop.telegram.org/changelog")));
+	_version->setLink(2, std::make_shared<LambdaClickHandler>([] { Ui::show(Box<AboutBox>()); }));
 
 	subscribe(Auth().downloaderTaskFinished(), [this] { update(); });
 	subscribe(Auth().downloaderTaskFinished(), [this] { update(); });
@@ -123,7 +115,7 @@ void MainMenu::refreshMenu() {
 		*_nightThemeAction = action;
 		action->setCheckable(true);
 		action->setChecked(Window::Theme::IsNightTheme());
-		_menu->finishAnimations();
+		_menu->finishAnimating();
 	}
 
 	updatePhone();
@@ -136,7 +128,12 @@ void MainMenu::checkSelf() {
 				App::main()->choosePeer(self->id, ShowAtUnreadMsgId);
 			}
 		};
-		_userpicButton.create(this, self, st::mainMenuUserpicSize);
+		_userpicButton.create(
+			this,
+			_controller,
+			self,
+			Ui::UserpicButton::Role::Custom,
+			st::mainMenuUserpic);
 		_userpicButton->setClickedCallback(showSelfChat);
 		_userpicButton->show();
 		_cloudButton.create(this, st::mainMenuCloudButton);
@@ -144,19 +141,9 @@ void MainMenu::checkSelf() {
 		_cloudButton->show();
 		update();
 		updateControlsGeometry();
-		if (_showFinished) {
-			_userpicButton->showFinished();
-		}
 	} else {
 		_userpicButton.destroy();
 		_cloudButton.destroy();
-	}
-}
-
-void MainMenu::showFinished() {
-	_showFinished = true;
-	if (_userpicButton) {
-		_userpicButton->showFinished();
 	}
 }
 
@@ -200,13 +187,23 @@ void MainMenu::paintEvent(QPaintEvent *e) {
 			p.drawTextLeft(st::mainMenuCoverTextLeft, st::mainMenuCoverStatusTop, width(), _phoneText);
 		}
 		if (_cloudButton) {
-			PainterHighQualityEnabler hq(p);
-			p.setPen(Qt::NoPen);
-			p.setBrush(st::mainMenuCloudBg);
-			auto cloudBg = QRect(_cloudButton->x() + (_cloudButton->width() - st::mainMenuCloudSize) / 2,
+			Ui::EmptyUserpic::PaintSavedMessages(
+				p,
+				_cloudButton->x() + (_cloudButton->width() - st::mainMenuCloudSize) / 2,
 				_cloudButton->y() + (_cloudButton->height() - st::mainMenuCloudSize) / 2,
-				st::mainMenuCloudSize, st::mainMenuCloudSize);
-			p.drawEllipse(cloudBg);
+				width(),
+				st::mainMenuCloudSize,
+				st::mainMenuCloudBg,
+				st::mainMenuCloudFg);
+			//PainterHighQualityEnabler hq(p);
+			//p.setPen(Qt::NoPen);
+			//p.setBrush(st::mainMenuCloudBg);
+			//auto cloudBg = QRect(
+			//	_cloudButton->x() + (_cloudButton->width() - st::mainMenuCloudSize) / 2,
+			//	_cloudButton->y() + (_cloudButton->height() - st::mainMenuCloudSize) / 2,
+			//	st::mainMenuCloudSize,
+			//	st::mainMenuCloudSize);
+			//p.drawEllipse(cloudBg);
 		}
 	}
 	auto other = QRect(0, st::mainMenuCoverHeight, width(), height() - st::mainMenuCoverHeight).intersected(clip);

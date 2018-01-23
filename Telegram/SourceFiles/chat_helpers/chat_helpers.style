@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 using "basic.style";
 
@@ -29,7 +16,7 @@ switchPmButton: RoundButton(defaultBoxButton) {
 	textTop: 7px;
 }
 stickersRestrictedLabel: FlatLabel(defaultFlatLabel) {
-	width: 320px;
+	minWidth: 200px;
 	align: align(center);
 	textFg: noContactsColor;
 }
@@ -133,11 +120,13 @@ emojiObjectsActive: icon {{ "emoji_objects", emojiIconFgActive }};
 emojiSymbols: icon {{ "emoji_symbols", emojiIconFg }};
 emojiSymbolsActive: icon {{ "emoji_symbols", emojiIconFgActive }};
 
+emojiFooterHeight: 46px;
+emojiCategorySkip: 4px;
 emojiCategory: IconButton {
 	width: 42px;
-	height: 46px;
+	height: emojiFooterHeight;
 
-	iconPosition: point(8px, 9px);
+	iconPosition: point(-1px, 9px);
 }
 emojiCategoryRecent: IconButton(emojiCategory) { icon: emojiRecent; }
 emojiCategoryPeople: IconButton(emojiCategory) { icon: emojiPeople; }
@@ -152,7 +141,6 @@ emojiPanAnimation: PanelAnimation(defaultPanelAnimation) {
 	fadeBg: emojiPanBg;
 }
 emojiPanPadding: 12px;
-emojiPanSize: size(45px, 41px);
 emojiPanWidth: 345px;
 emojiPanMinHeight: 278px;
 emojiPanMaxHeight: 640px;
@@ -161,6 +149,7 @@ emojiPanShowDuration: 200;
 emojiPanDuration: 200;
 emojiPanHover: windowBgOver;
 emojiPanSlideDuration: 200;
+emojiPanDesiredSize: 45px;
 
 emojiPanHeader: 42px;
 emojiPanHeaderFont: semiboldFont;
@@ -192,7 +181,8 @@ hashtagClose: IconButton {
 	}
 }
 
-stickerPanSize: size(64px, 64px);
+stickerPanWidthMin: 64px;
+stickerPanSize: size(stickerPanWidthMin, stickerPanWidthMin);
 stickerPanPadding: 11px;
 stickerPanDeleteIconBg: icon {{ "emoji_delete_bg", stickerPanDeleteBg }};
 stickerPanDeleteIconFg: icon {{ "emoji_delete", stickerPanDeleteFg }};
@@ -201,6 +191,8 @@ stickerPanDeleteOpacityBgOver: 0.5;
 stickerPanDeleteOpacityFg: 0.8;
 stickerPanDeleteOpacityFgOver: 1.;
 stickerPanRemoveSet: hashtagClose;
+stickerIconWidth: 42px;
+stickerIconHeight: emojiFooterHeight;
 stickerIconPadding: 5px;
 stickerIconOpacity: 0.7;
 stickerIconSel: 2px;

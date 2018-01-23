@@ -1,32 +1,21 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include <rpl/event_stream.h>
+#include "ui/rp_widget.h"
 #include "styles/style_widgets.h"
 
 namespace Ui {
 
 class RippleAnimation;
 
-class DiscreteSlider : public TWidget {
+class DiscreteSlider : public RpWidget {
 public:
 	DiscreteSlider(QWidget *parent);
 
@@ -37,9 +26,11 @@ public:
 	}
 	void setActiveSection(int index);
 	void setActiveSectionFast(int index);
+	void finishAnimating();
 
-	using SectionActivatedCallback = base::lambda<void()>;
-	void setSectionActivatedCallback(SectionActivatedCallback &&callback);
+	auto sectionActivated() const {
+		return _sectionActivated.events();
+	}
 
 protected:
 	void timerEvent(QTimerEvent *e) override;
@@ -55,7 +46,7 @@ protected:
 		int left, width;
 		QString label;
 		int labelWidth;
-		QSharedPointer<RippleAnimation> ripple;
+		std::unique_ptr<RippleAnimation> ripple;
 	};
 
 	int getCurrentActiveLeft(TimeMs ms);
@@ -66,6 +57,9 @@ protected:
 
 	template <typename Lambda>
 	void enumerateSections(Lambda callback);
+
+	template <typename Lambda>
+	void enumerateSections(Lambda callback) const;
 
 	virtual void startRipple(int sectionIndex) {
 	}
@@ -84,11 +78,11 @@ private:
 	int getIndexFromPosition(QPoint pos);
 	void setSelectedSection(int index);
 
-	QList<Section> _sections;
+	std::vector<Section> _sections;
 	int _activeIndex = 0;
 	bool _selectOnPress = true;
 
-	SectionActivatedCallback _callback;
+	rpl::event_stream<int> _sectionActivated;
 
 	int _pressed = -1;
 	int _selected = 0;
@@ -118,6 +112,7 @@ private:
 	QImage prepareRippleMask(int sectionIndex, const Section &section);
 
 	void resizeSections(int newWidth);
+	std::vector<float64> countSectionsWidths(int newWidth) const;
 
 	const style::SettingsSlider &_st;
 	int _rippleTopRoundRadius = 0;

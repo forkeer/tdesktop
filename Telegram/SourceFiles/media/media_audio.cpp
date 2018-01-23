@@ -1,31 +1,19 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "media/media_audio.h"
 
+#include "data/data_document.h"
 #include "media/media_audio_ffmpeg_loader.h"
 #include "media/media_child_ffmpeg_loader.h"
 #include "media/media_audio_loaders.h"
 #include "media/media_audio_track.h"
 #include "platform/platform_audio.h"
-#include "base/task_queue.h"
+#include "messenger.h"
 
 #include <AL/al.h>
 #include <AL/alc.h>
@@ -139,7 +127,11 @@ bool CreatePlaybackDevice() {
 		return false;
 	}
 
-	ALCint attributes[] = { ALC_STEREO_SOURCES, 128, 0 };
+	ALCint attributes[] = {
+		ALC_STEREO_SOURCES, 128,
+		ALC_FREQUENCY, Media::Player::kDefaultFrequency,
+		0
+	};
 	AudioContext = alcCreateContext(AudioDevice, attributes);
 	alcMakeContextCurrent(AudioContext);
 	if (ContextErrorHappened()) {
@@ -225,27 +217,35 @@ bool AttachToDevice() {
 		emit m->faderOnTimer();
 	}
 
-	base::TaskQueue::Main().Put([] {
-		Current().reattachTracks();
+	crl::on_main([] {
+		if (Messenger::InstancePointer()) {
+			Current().reattachTracks();
+		}
 	});
 	return true;
 }
 
 void ScheduleDetachFromDeviceSafe() {
-	base::TaskQueue::Main().Put([] {
-		Current().scheduleDetachFromDevice();
+	crl::on_main([] {
+		if (Messenger::InstancePointer()) {
+			Current().scheduleDetachFromDevice();
+		}
 	});
 }
 
 void ScheduleDetachIfNotUsedSafe() {
-	base::TaskQueue::Main().Put([] {
-		Current().scheduleDetachIfNotUsed();
+	crl::on_main([] {
+		if (Messenger::InstancePointer()) {
+			Current().scheduleDetachIfNotUsed();
+		}
 	});
 }
 
 void StopDetachIfNotUsedSafe() {
-	base::TaskQueue::Main().Put([] {
-		Current().stopDetachIfNotUsed();
+	crl::on_main([] {
+		if (Messenger::InstancePointer()) {
+			Current().stopDetachIfNotUsed();
+		}
 	});
 }
 
@@ -255,7 +255,7 @@ namespace Player {
 namespace {
 
 constexpr auto kVolumeRound = 10000;
-constexpr auto kPreloadSamples = 2LL * 48000; // preload next part if less than 2 seconds remains
+constexpr auto kPreloadSamples = 2LL * kDefaultFrequency; // preload next part if less than 2 seconds remains
 constexpr auto kFadeDuration = TimeMs(500);
 constexpr auto kCheckPlaybackPositionTimeout = TimeMs(100); // 100ms per check audio position
 constexpr auto kCheckPlaybackPositionDelta = 2400LL; // update position called each 2400 samples
@@ -614,12 +614,15 @@ bool Mixer::fadedStop(AudioMsgId::Type type, bool *fadedStart) {
 	return false;
 }
 
-void Mixer::play(const AudioMsgId &audio, int64 position) {
+void Mixer::play(const AudioMsgId &audio, TimeMs positionMs) {
 	setSongVolume(Global::SongVolume());
-	play(audio, nullptr, position);
+	play(audio, nullptr, positionMs);
 }
 
-void Mixer::play(const AudioMsgId &audio, std::unique_ptr<VideoSoundData> videoData, int64 position) {
+void Mixer::play(
+		const AudioMsgId &audio,
+		std::unique_ptr<VideoSoundData> videoData,
+		TimeMs positionMs) {
 	Expects(!videoData || audio.playId() != 0);
 
 	auto type = audio.type();
@@ -695,10 +698,11 @@ void Mixer::play(const AudioMsgId &audio, std::unique_ptr<VideoSoundData> videoD
 			auto newState = (type == AudioMsgId::Type::Song) ? State::Stopped : State::StoppedAtError;
 			setStoppedState(current, newState);
 		} else {
-			current->state.position = position;
+			current->state.position = (positionMs * current->state.frequency)
+				/ 1000LL;
 			current->state.state = current->videoData ? State::Paused : fadedStart ? State::Starting : State::Playing;
 			current->loading = true;
-			emit loaderOnStart(current->state.id, position);
+			emit loaderOnStart(current->state.id, positionMs);
 			if (type == AudioMsgId::Type::Voice) {
 				emit suppressSong();
 			}
@@ -866,20 +870,31 @@ void Mixer::resume(const AudioMsgId &audio, bool fast) {
 	if (current) emit updated(current);
 }
 
-void Mixer::seek(AudioMsgId::Type type, int64 position) {
+void Mixer::seek(AudioMsgId::Type type, TimeMs positionMs) {
 	QMutexLocker lock(&AudioMutex);
 
-	auto current = trackForType(type);
-	auto audio = current->state.id;
+	const auto current = trackForType(type);
+	const auto audio = current->state.id;
 
 	Audio::AttachToDevice();
-	auto streamCreated = current->isStreamCreated();
-	auto fastSeek = (position >= current->bufferedPosition && position < current->bufferedPosition + current->bufferedLength - (current->loaded ? 0 : kDefaultFrequency));
-	if (!streamCreated) {
-		fastSeek = false;
-	} else if (IsStoppedOrStopping(current->state.state)) {
-		fastSeek = false;
-	}
+	const auto streamCreated = current->isStreamCreated();
+	const auto position = (positionMs * current->frequency) / 1000LL;
+	const auto fastSeek = [&] {
+		const auto loadedStart = current->bufferedPosition;
+		const auto loadedLength = current->bufferedLength;
+		const auto skipBack = (current->loaded ? 0 : kDefaultFrequency);
+		const auto availableEnd = loadedStart + loadedLength - skipBack;
+		if (position < loadedStart) {
+			return false;
+		} else if (position >= availableEnd) {
+			return false;
+		} else if (!streamCreated) {
+			return false;
+		} else if (IsStoppedOrStopping(current->state.state)) {
+			return false;
+		}
+		return true;
+	}();
 	if (fastSeek) {
 		alSourcei(current->stream.source, AL_SAMPLE_OFFSET, position - current->bufferedPosition);
 		if (!checkCurrentALError(type)) return;
@@ -916,7 +931,7 @@ void Mixer::seek(AudioMsgId::Type type, int64 position) {
 	case State::StoppedAtError:
 	case State::StoppedAtStart: {
 		lock.unlock();
-	} return play(audio, position);
+	} return play(audio, positionMs);
 	}
 	emit faderOnTimer();
 }
@@ -1377,12 +1392,12 @@ void DetachFromDevice() {
 
 class FFMpegAttributesReader : public AbstractFFMpegLoader {
 public:
-
-	FFMpegAttributesReader(const FileLocation &file, const QByteArray &data) : AbstractFFMpegLoader(file, data, base::byte_vector()) {
+	FFMpegAttributesReader(const FileLocation &file, const QByteArray &data)
+	: AbstractFFMpegLoader(file, data, base::byte_vector()) {
 	}
 
-	bool open(qint64 &position) override {
-		if (!AbstractFFMpegLoader::open(position)) {
+	bool open(TimeMs positionMs) override {
+		if (!AbstractFFMpegLoader::open(positionMs)) {
 			return false;
 		}
 
@@ -1396,15 +1411,22 @@ public:
 		}
 
 		for (int32 i = 0, l = fmtContext->nb_streams; i < l; ++i) {
-			AVStream *stream = fmtContext->streams[i];
+			const auto stream = fmtContext->streams[i];
 			if (stream->disposition & AV_DISPOSITION_ATTACHED_PIC) {
-				const AVPacket &packet(stream->attached_pic);
+				const auto &packet = stream->attached_pic;
 				if (packet.size) {
-					bool animated = false;
-					QByteArray cover((const char*)packet.data, packet.size), format;
-					_cover = App::readImage(cover, &format, true, &animated);
+					const auto coverBytes = QByteArray(
+						(const char*)packet.data,
+						packet.size);
+					auto format = QByteArray();
+					auto animated = false;
+					_cover = App::readImage(
+						coverBytes,
+						&format,
+						true,
+						&animated);
 					if (!_cover.isNull()) {
-						_coverBytes = cover;
+						_coverBytes = coverBytes;
 						_coverFormat = format;
 						break;
 					}
@@ -1436,7 +1458,7 @@ public:
 		//}
 	}
 
-	int32 format() override {
+	int format() override {
 		return 0;
 	}
 
@@ -1479,11 +1501,11 @@ private:
 namespace Media {
 namespace Player {
 
-FileLoadTask::Song PrepareForSending(const QString &fname, const QByteArray &data) {
-	auto result = FileLoadTask::Song();
+FileMediaInformation::Song PrepareForSending(const QString &fname, const QByteArray &data) {
+	auto result = FileMediaInformation::Song();
 	FFMpegAttributesReader reader(FileLocation(fname), data);
-	qint64 position = 0;
-	if (reader.open(position) && reader.samplesCount() > 0) {
+	const auto positionMs = TimeMs(0);
+	if (reader.open(positionMs) && reader.samplesCount() > 0) {
 		result.duration = reader.samplesCount() / reader.samplesFrequency();
 		result.title = reader.title();
 		result.performer = reader.performer();
@@ -1500,14 +1522,16 @@ public:
 	FFMpegWaveformCounter(const FileLocation &file, const QByteArray &data) : FFMpegLoader(file, data, base::byte_vector()) {
 	}
 
-	bool open(qint64 &position) override {
-		if (!FFMpegLoader::open(position)) {
+	bool open(TimeMs positionMs) override {
+		if (!FFMpegLoader::open(positionMs)) {
 			return false;
 		}
 
 		QByteArray buffer;
 		buffer.reserve(AudioVoiceMsgBufferSize);
-		int64 countbytes = sampleSize * samplesCount(), processed = 0, sumbytes = 0;
+		int64 countbytes = sampleSize() * samplesCount();
+		int64 processed = 0;
+		int64 sumbytes = 0;
 		if (samplesCount() < Media::Player::kWaveformSamplesCount) {
 			return false;
 		}
@@ -1517,7 +1541,7 @@ public:
 
 		auto fmt = format();
 		auto peak = uint16(0);
-		auto callback = [&peak, &sumbytes, &peaks, countbytes](uint16 sample) {
+		auto callback = [&](uint16 sample) {
 			accumulate_max(peak, sample);
 			sumbytes += Media::Player::kWaveformSamplesCount;
 			if (sumbytes >= countbytes) {
@@ -1544,7 +1568,7 @@ public:
 			} else if (fmt == AL_FORMAT_MONO16 || fmt == AL_FORMAT_STEREO16) {
 				Media::Audio::IterateSamples<int16>(sampleBytes, callback);
 			}
-			processed += sampleSize * samples;
+			processed += sampleSize() * samples;
 		}
 		if (sumbytes > 0 && peaks.size() < Media::Player::kWaveformSamplesCount) {
 			peaks.push_back(peak);
@@ -1579,8 +1603,8 @@ private:
 
 VoiceWaveform audioCountWaveform(const FileLocation &file, const QByteArray &data) {
 	FFMpegWaveformCounter counter(file, data);
-	qint64 position = 0;
-	if (counter.open(position)) {
+	const auto positionMs = TimeMs(0);
+	if (counter.open(positionMs)) {
 		return counter.waveform();
 	}
 	return VoiceWaveform();

@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "intro/introcode.h"
 
@@ -220,7 +207,7 @@ void CodeWidget::codeSubmitDone(const MTPauth_Authorization &result) {
 	_sentRequest = 0;
 	auto &d = result.c_auth_authorization();
 	if (d.vuser.type() != mtpc_user || !d.vuser.c_user().is_self()) { // wtf?
-		showCodeError(langFactory(lng_server_error));
+		showCodeError(&Lang::Hard::ServerError);
 		return;
 	}
 	cSetLoggedPhoneNumber(getData()->phone);
@@ -259,7 +246,7 @@ bool CodeWidget::codeSubmitFail(const RPCError &error) {
 		auto text = err + ": " + error.description();
 		showCodeError([text] { return text; });
 	} else {
-		showCodeError(langFactory(lng_server_error));
+		showCodeError(&Lang::Hard::ServerError);
 	}
 	return false;
 }
@@ -337,7 +324,7 @@ void CodeWidget::onNoTelegramCode() {
 
 void CodeWidget::noTelegramCodeDone(const MTPauth_SentCode &result) {
 	if (result.type() != mtpc_auth_sentCode) {
-		showCodeError(langFactory(lng_server_error));
+		showCodeError(&Lang::Hard::ServerError);
 		return;
 	}
 
@@ -366,7 +353,7 @@ bool CodeWidget::noTelegramCodeFail(const RPCError &error) {
 		auto text = error.type() + ": " + error.description();
 		showCodeError([text] { return text; });
 	} else {
-		showCodeError(langFactory(lng_server_error));
+		showCodeError(&Lang::Hard::ServerError);
 	}
 	return false;
 }

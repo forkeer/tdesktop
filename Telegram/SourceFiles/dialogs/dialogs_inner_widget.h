@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
@@ -107,7 +94,6 @@ public:
 	void setLoadMoreCallback(base::lambda<void()> callback) {
 		_loadMoreCallback = std::move(callback);
 	}
-	void setVisibleTopBottom(int visibleTop, int visibleBottom) override;
 
 	base::Observable<UserData*> searchFromUserChanged;
 
@@ -120,8 +106,6 @@ public slots:
 	void onParentGeometryChanged();
 	void onDialogRowReplaced(Dialogs::Row *oldRow, Dialogs::Row *newRow);
 
-	void onMenuDestroyed(QObject*);
-
 signals:
 	void draggingScrollDelta(int delta);
 	void mustScrollTo(int scrollToTop, int scrollToBottom);
@@ -133,6 +117,10 @@ signals:
 	void refreshHashtags();
 
 protected:
+	void visibleTopBottomUpdated(
+		int visibleTop,
+		int visibleBottom) override;
+
 	void paintRegion(Painter &p, const QRegion &region, bool paintingOther) override;
 	void mouseMoveEvent(QMouseEvent *e) override;
 	void mousePressEvent(QMouseEvent *e) override;
@@ -171,9 +159,9 @@ private:
 	bool isSelected() const {
 		return _importantSwitchSelected || _selected || (_hashtagSelected >= 0) || (_filteredSelected >= 0) || (_peerSearchSelected >= 0) || (_searchedSelected >= 0);
 	}
-	void handlePeerNameChange(not_null<PeerData*> peer, const PeerData::Names &oldNames, const PeerData::NameFirstChars &oldChars);
+	void handlePeerNameChange(not_null<PeerData*> peer, const PeerData::NameFirstChars &oldChars);
 
-	void itemRemoved(HistoryItem *item);
+	void itemRemoved(not_null<const HistoryItem*> item);
 	enum class UpdateRowSection {
 		Default       = (1 << 0),
 		Filtered      = (1 << 1),
@@ -195,7 +183,12 @@ private:
 	void paintDialog(Painter &p, Dialogs::Row *row, int fullWidth, PeerData *active, PeerData *selected, bool onlyBackground, TimeMs ms);
 	void paintPeerSearchResult(Painter &p, const PeerSearchResult *result, int fullWidth, bool active, bool selected, bool onlyBackground, TimeMs ms) const;
 	void paintSearchInPeer(Painter &p, int fullWidth, bool onlyBackground, TimeMs ms) const;
-	void paintSearchInFilter(Painter &p, not_null<PeerData*> peer, int top, int fullWidth, const Text &text) const;
+	void paintSearchInFilter(
+		Painter &p,
+		PeerData *peer,
+		int top,
+		int fullWidth,
+		const Text &text) const;
 
 	void clearSelection();
 	void clearSearchResults(bool clearPeerSearchResults = true);
@@ -288,10 +281,11 @@ private:
 	PeerData *_searchInMigrated = nullptr;
 	UserData *_searchFromUser = nullptr;
 	Text _searchFromUserText;
+	Text _searchInSavedText;
 	PeerData *_menuPeer = nullptr;
 
-	Ui::PopupMenu *_menu = nullptr;
-
 	base::lambda<void()> _loadMoreCallback;
+
+	base::unique_qptr<Ui::PopupMenu> _menu;
 
 };

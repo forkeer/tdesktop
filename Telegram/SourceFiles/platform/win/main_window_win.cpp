@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "platform/win/main_window_win.h"
 
@@ -113,7 +100,7 @@ public:
 	using Change = MainWindow::ShadowsChange;
 	using Changes = MainWindow::ShadowsChanges;
 
-	_PsShadowWindows() : screenDC(0), max_w(0), max_h(0), _x(0), _y(0), _w(0), _h(0), hidden(true), r(0), g(0), b(0), noKeyColor(RGB(255, 255, 255)) {
+	_PsShadowWindows() : screenDC(0), noKeyColor(RGB(255, 255, 255)) {
 		for (int i = 0; i < 4; ++i) {
 			dcs[i] = 0;
 			bitmaps[i] = 0;
@@ -511,22 +498,22 @@ public:
 
 private:
 
-	int _x, _y, _w, _h;
-	int _metaSize, _fullsize, _size, _shift;
+	int _x = 0, _y = 0, _w = 0, _h = 0;
+	int _metaSize = 0, _fullsize = 0, _size = 0, _shift = 0;
 	QVector<BYTE> _alphas, _colors;
 
-	bool hidden;
+	bool hidden = true;
 
 	HWND hwnds[4];
 	HDC dcs[4], screenDC;
 	HBITMAP bitmaps[4];
-	int max_w, max_h;
+	int max_w = 0, max_h = 0;
 	BLENDFUNCTION blend;
 
-	BYTE r, g, b;
+	BYTE r = 0, g = 0, b = 0;
 	COLORREF noKeyColor;
 
-	static LRESULT CALLBACK _PsShadowWindows::wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+	static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 };
 _PsShadowWindows _psShadowWindows;

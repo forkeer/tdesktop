@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "ui/widgets/discrete_sliders.h"
 
@@ -25,12 +12,8 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 
 namespace Ui {
 
-DiscreteSlider::DiscreteSlider(QWidget *parent) : TWidget(parent) {
+DiscreteSlider::DiscreteSlider(QWidget *parent) : RpWidget(parent) {
 	setCursor(style::cur_pointer);
-}
-
-void DiscreteSlider::setSectionActivatedCallback(SectionActivatedCallback &&callback) {
-	_callback = std::move(callback);
 }
 
 void DiscreteSlider::setActiveSection(int index) {
@@ -48,9 +31,7 @@ void DiscreteSlider::activateCallback() {
 	}
 	auto ms = getms();
 	if (ms >= _callbackAfterMs) {
-		if (_callback) {
-			_callback();
-		}
+		_sectionActivated.fire_copy(_activeIndex);
 	} else {
 		_timerId = startTimer(_callbackAfterMs - ms, Qt::PreciseTimer);
 	}
@@ -62,6 +43,10 @@ void DiscreteSlider::timerEvent(QTimerEvent *e) {
 
 void DiscreteSlider::setActiveSectionFast(int index) {
 	setActiveSection(index);
+	finishAnimating();
+}
+
+void DiscreteSlider::finishAnimating() {
 	_a_left.finish();
 	update();
 }
@@ -93,11 +78,21 @@ void DiscreteSlider::setSections(const QStringList &labels) {
 }
 
 int DiscreteSlider::getCurrentActiveLeft(TimeMs ms) {
-	return _a_left.current(ms, _sections.isEmpty() ? 0 : _sections[_selected].left);
+	const auto left = _sections.empty() ? 0 : _sections[_selected].left;
+	return _a_left.current(ms, left);
 }
 
 template <typename Lambda>
 void DiscreteSlider::enumerateSections(Lambda callback) {
+	for (auto &section : _sections) {
+		if (!callback(section)) {
+			return;
+		}
+	}
+}
+
+template <typename Lambda>
+void DiscreteSlider::enumerateSections(Lambda callback) const {
 	for (auto &section : _sections) {
 		if (!callback(section)) {
 			return;
@@ -185,18 +180,53 @@ void SettingsSlider::resizeSections(int newWidth) {
 	auto count = getSectionsCount();
 	if (!count) return;
 
-	auto sectionsWidth = newWidth - (count - 1) * _st.barSkip;
-	auto sectionWidth = sectionsWidth / float64(count);
+	auto sectionWidths = countSectionsWidths(newWidth);
+
 	auto skip = 0;
 	auto x = 0.;
-	enumerateSections([this, &x, &skip, sectionWidth](Section &section) {
+	auto sectionWidth = sectionWidths.begin();
+	enumerateSections([&](Section &section) {
+		Expects(sectionWidth != sectionWidths.end());
+
 		section.left = qFloor(x) + skip;
-		x += sectionWidth;
+		x += *sectionWidth;
 		section.width = qRound(x) - (section.left - skip);
 		skip += _st.barSkip;
+		++sectionWidth;
 		return true;
 	});
 	stopAnimation();
+}
+
+std::vector<float64> SettingsSlider::countSectionsWidths(
+		int newWidth) const {
+	auto count = getSectionsCount();
+	auto sectionsWidth = newWidth - (count - 1) * _st.barSkip;
+	auto sectionWidth = sectionsWidth / float64(count);
+
+	auto result = std::vector<float64>(count, sectionWidth);
+	auto labelsWidth = 0;
+	auto commonWidth = true;
+	enumerateSections([&](const Section &section) {
+		labelsWidth += section.labelWidth;
+		if (section.labelWidth >= sectionWidth) {
+			commonWidth = false;
+		}
+		return true;
+	});
+	// If labelsWidth > sectionsWidth we're screwed anyway.
+	if (!commonWidth && labelsWidth <= sectionsWidth) {
+		auto padding = (sectionsWidth - labelsWidth) / (2. * count);
+		auto currentWidth = result.begin();
+		enumerateSections([&](const Section &section) {
+			Expects(currentWidth != result.end());
+
+			*currentWidth = padding + section.labelWidth + padding;
+			++currentWidth;
+			return true;
+		});
+	}
+	return result;
 }
 
 int SettingsSlider::resizeGetHeight(int newWidth) {
@@ -211,9 +241,13 @@ void SettingsSlider::startRipple(int sectionIndex) {
 		if (index++ == sectionIndex) {
 			if (!section.ripple) {
 				auto mask = prepareRippleMask(sectionIndex, section);
-				section.ripple = MakeShared<RippleAnimation>(_st.ripple, std::move(mask), [this] { update(); });
+				section.ripple = std::make_unique<RippleAnimation>(
+					_st.ripple,
+					std::move(mask),
+					[this] { update(); });
 			}
-			section.ripple->add(mapFromGlobal(QCursor::pos()) - QPoint(section.left, 0));
+			const auto point = mapFromGlobal(QCursor::pos());
+			section.ripple->add(point - QPoint(section.left, 0));
 			return false;
 		}
 		return true;

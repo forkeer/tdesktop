@@ -1,22 +1,9 @@
 /*
 This file is part of Telegram Desktop,
-the official desktop version of Telegram messaging app, see https://telegram.org
+the official desktop application for the Telegram messaging service.
 
-Telegram Desktop is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-It is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-In addition, as a special exception, the copyright holders give permission
-to link the code of portions of this program with the OpenSSL library.
-
-Full license: https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE
-Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "intro/introphone.h"
 
@@ -26,12 +13,42 @@ Copyright (c) 2014-2017 John Preston, https://desktop.telegram.org
 #include "styles/style_intro.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/labels.h"
-#include "ui/effects/widget_fade_wrap.h"
+#include "ui/wrap/fade_wrap.h"
 #include "core/click_handler_types.h"
 #include "boxes/confirm_box.h"
+#include "base/qthelp_url.h"
+#include "platform/platform_specific.h"
 #include "messenger.h"
 
 namespace Intro {
+namespace {
+
+void SendToBannedHelp(const QString &phone) {
+	const auto version = QString::fromLatin1(AppVersionStr.c_str())
+		+ (cAlphaVersion() ? " alpha" : "")
+		+ (cBetaVersion() ? qsl(" beta %1").arg(cBetaVersion()) : QString());
+
+	const auto subject = qsl("Banned phone number: ") + phone;
+
+	const auto body = qsl("\
+I'm trying to use my mobile phone number: ") + phone + qsl("\n\
+But Telegram says it's banned. Please help.\n\
+\n\
+App version: ") + version + qsl("\n\
+OS version: ") + cPlatformString() + qsl("\n\
+Locale: ") + Platform::SystemLanguage();
+
+	const auto url = "mailto:?to="
+		+ qthelp::url_encode("login@stel.com")
+		+ "&subject="
+		+ qthelp::url_encode(subject)
+		+ "&body="
+		+ qthelp::url_encode(body);
+
+	UrlClickHandler::doOpen(url);
+}
+
+} // namespace
 
 PhoneWidget::PhoneWidget(QWidget *parent, Widget::Data *data) : Step(parent, data)
 , _country(this, st::introCountry)
@@ -84,7 +101,7 @@ void PhoneWidget::showPhoneError(base::lambda<QString()> textFactory) {
 void PhoneWidget::hidePhoneError() {
 	hideError();
 	if (_signup) {
-		_signup->hideAnimated();
+		_signup->hide(anim::type::instant);
 		showDescription();
 	}
 }
@@ -94,15 +111,15 @@ void PhoneWidget::showSignup() {
 	if (!_signup) {
 		auto signupText = lng_phone_notreg(lt_link_start, textcmdStartLink(1), lt_link_end, textcmdStopLink(), lt_signup_start, textcmdStartLink(2), lt_signup_end, textcmdStopLink());
 		auto inner = object_ptr<Ui::FlatLabel>(this, signupText, Ui::FlatLabel::InitType::Rich, st::introDescription);
-		_signup.create(this, std::move(inner), st::introErrorDuration);
-		_signup->entity()->setLink(1, MakeShared<UrlClickHandler>(qsl("https://telegram.org"), false));
-		_signup->entity()->setLink(2, MakeShared<LambdaClickHandler>([this] {
+		_signup.create(this, std::move(inner));
+		_signup->entity()->setLink(1, std::make_shared<UrlClickHandler>(qsl("https://telegram.org"), false));
+		_signup->entity()->setLink(2, std::make_shared<LambdaClickHandler>([this] {
 			toSignUp();
 		}));
-		_signup->hideFast();
+		_signup->hide(anim::type::instant);
 		updateSignupGeometry();
 	}
-	_signup->showAnimated();
+	_signup->show(anim::type::normal);
 	hideDescription();
 }
 
@@ -172,7 +189,7 @@ void PhoneWidget::phoneSubmitDone(const MTPauth_SentCode &result) {
 	_sentRequest = 0;
 
 	if (result.type() != mtpc_auth_sentCode) {
-		showPhoneError(langFactory(lng_server_error));
+		showPhoneError(&Lang::Hard::ServerError);
 		return;
 	}
 
@@ -217,12 +234,21 @@ bool PhoneWidget::phoneSubmitFail(const RPCError &error) {
 	} else if (err == qstr("PHONE_NUMBER_INVALID")) { // show error
 		showPhoneError(langFactory(lng_bad_phone));
 		return true;
+	} else if (err == qstr("PHONE_NUMBER_BANNED")) {
+		const auto phone = _sentPhone;
+		Ui::show(Box<ConfirmBox>(
+			lang(lng_signin_banned_text),
+			lang(lng_box_ok),
+			lang(lng_signin_banned_help),
+			[] { Ui::hideLayer(); },
+			[phone] { SendToBannedHelp(phone); Ui::hideLayer(); }));
+		return true;
 	}
 	if (cDebug()) { // internal server error
 		auto text = err + ": " + error.description();
 		showPhoneError([text] { return text; });
 	} else {
-		showPhoneError(langFactory(lng_server_error));
+		showPhoneError(&Lang::Hard::ServerError);
 	}
 	return false;
 }
